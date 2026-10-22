@@ -26,6 +26,10 @@ class PyMosh:
         toolbar = tk.Frame(root, bg="#222222")
         toolbar.pack(fill="x")
         
+        '''##effects reg -> {code: ("name", function_to_call)}
+        self.registry = {
+            1: ("RGB Split", self.rgb_split)
+        }'''
         
         open_button = tk.Button(
             toolbar,
@@ -59,6 +63,16 @@ class PyMosh:
             bg=self.bg2
             )
         header.place(relx=0.5, rely=0.5, anchor="center")
+        
+        search = tk.Entry(
+            toolbar,
+            font=("Courier", 12, "bold"),
+            fg=self.neon,
+            bg=self.bg1,
+            relief="ridge",
+            
+        )
+        search.pack(side="right", padx=10, pady=10)
         
         ##main image display
         self.canvas = tk.Label(
@@ -111,7 +125,7 @@ class PyMosh:
             self.status.configure(
                 text=(f"PYMOSH // {os.path.basename(path)} // {self.image.width}x{self.image.height} px")
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             self.status.configure(text=f"Error // {error}")
             
     def update_preview(self):
@@ -130,7 +144,7 @@ class PyMosh:
         )        
     
     def save_image(self):
-        if self.image == None:
+        if self.image is None:
             return
         
         path = filedialog.asksaveasfilename(
