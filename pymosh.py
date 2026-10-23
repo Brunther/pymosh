@@ -4,6 +4,8 @@ from tkinter import filedialog
 
 from PIL import Image, ImageTk
 
+from registry import run_effect
+
 
 class PyMosh:
     def __init__(self, root):
@@ -25,11 +27,6 @@ class PyMosh:
         ##top toolbar
         toolbar = tk.Frame(root, bg="#222222")
         toolbar.pack(fill="x")
-        
-        '''##effects reg -> {code: ("name", function_to_call)}
-        self.registry = {
-            1: ("RGB Split", self.rgb_split)
-        }'''
         
         open_button = tk.Button(
             toolbar,
@@ -64,15 +61,21 @@ class PyMosh:
             )
         header.place(relx=0.5, rely=0.5, anchor="center")
         
-        search = tk.Entry(
+        #TODO: search autocomplete / show what each parameter does
+        self.search = tk.Entry(
             toolbar,
             font=("Courier", 12, "bold"),
             fg=self.neon,
             bg=self.bg1,
             relief="ridge",
+            insertbackground=self.neon
             
         )
-        search.pack(side="right", padx=10, pady=10)
+        self.search.pack(side="right", padx=10, pady=10)
+        self.search.bind(
+            "<Return>",
+            self.execute_effect
+        )
         
         ##main image display
         self.canvas = tk.Label(
@@ -123,7 +126,7 @@ class PyMosh:
             self.update_preview()
             
             self.status.configure(
-                text=(f"PYMOSH // {os.path.basename(path)} // {self.image.width}x{self.image.height} px")
+                text=(f"PYMOSH // {os.path.basename(path).upper()} // {self.image.width}x{self.image.height} PX")
             )
         except Exception as error:  # noqa: BLE001
             self.status.configure(text=f"Error // {error}")
@@ -164,8 +167,34 @@ class PyMosh:
         self.status.configure(
             text=f"PYMOSH // SAVED: {path.split('/')[-1]}"
         )
-            
+    
+    
+    def execute_effect(self, event=None):
+        if self.original_image is None:
+            self.status.configure(
+                text="PYMOSH // OPEN AN IMAGE FIRST"
+            )
+            return "break"
         
+        query = self.search.get()
+        
+        image = self.image.copy() if hasattr(self, 'image') and self.image is not None else self.original_image.copy()
+        
+        try:
+            self.image, name = run_effect(
+                query, image.copy()
+            )
+            
+            self.update_preview()
+            
+            self.status.configure(
+                text=f"PYMOSH // APPLIED {name.upper()}"
+            )
+        except ValueError as error:
+            self.status.configure(
+                text=f"PYMOSH // {error}"
+            )
+        return "break"
             
 
 root = tk.Tk()
