@@ -7,20 +7,23 @@ REGISTRY = {
         "default": 10
     },
     "2": {
-        "name": "Scanlines",
-        "function": scanlines,
-        "default": 15
+        "name": "blur",
+        "function": blur,
+        "default": 5
+    },
+    "3": {
+        "name": "grayscale",
+        "function": grayscale,
+        "default": 1
     }
 }
 
 #TODO: allow code input to have multiple parameters (ie 2:10:10)
 
 
-def run_effect(query, img):
-    query = query.strip().lower()
+def run_effect(query_parts, img):
     
-    parts = query.split(":", 1)
-    code = parts[0].strip()
+    code = query_parts[0]
     
     if code not in REGISTRY:
         for key, effect in REGISTRY.items():
@@ -28,12 +31,12 @@ def run_effect(query, img):
                 code = key
                 break
         else:
-            raise ValueError(f"Unkown effect: {code}")
+            raise ValueError(f"Unknown effect: {code}")
     effect = REGISTRY[code]
         
-    if len(parts) > 1:
+    if len(query_parts) > 1:
         try:
-            amount = int(parts[1].strip())
+            amount = int(query_parts[1].strip())
         except ValueError:
             raise ValueError("Paramater must be number")
     else:

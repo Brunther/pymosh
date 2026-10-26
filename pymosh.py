@@ -26,7 +26,7 @@ class PyMosh:
         self.bg2 = "#222222"
         
         ##top toolbar
-        toolbar = tk.Frame(root, bg="#222222")
+        toolbar = tk.Frame(root, bg=self.bg2)
         toolbar.pack(fill="x")
         
         open_button = tk.Button(
@@ -97,7 +97,7 @@ class PyMosh:
             root,
             text="PYMOSH // READY",
             font=("Courier", 11, "bold"),
-            bg="#222222",
+            bg=self.bg2,
             fg=self.neon,
             anchor="w",
             padx=10,
@@ -179,19 +179,28 @@ class PyMosh:
             )
             return "break"
         
-        query = self.search.get()
+        query = self.search.get().lower().strip()
+        parts = query.split(":", 1)
         
         image = self.image.copy() if hasattr(self, 'image') and self.image is not None else self.original_image.copy()
         
         try:
             
-            if query.lower() in {"r", "restart", "reset"}:
+            if parts[0] in {"r", "restart", "reset"}:
                 self.restart()
-            elif query.lower() in {"u", "z", "undo"}:
-                self.undo()
+            elif query.lower().split(":")[0] in {"u", "z", "undo"}:
+                if len(parts) == 2:
+                    try:
+                        self.undo(amount=int(parts[1]))
+                    except ValueError:
+                        raise ValueError("Paramater must be number")
+                else:
+                    self.undo()
             else:
                 self.undo_stack.append(self.image.copy())
-                self.image, name = run_effect(query, image.copy())
+                if len(self.undo_stack) > 20:
+                    self.undo_stack.pop(0) 
+                self.image, name = run_effect(parts, image.copy())
                 self.update_preview()
                 
                 self.status.configure(
@@ -203,24 +212,33 @@ class PyMosh:
             )
         return "break"
     
-    def undo(self):
+    def undo(self, amount=1):
         if not self.undo_stack:
             self.status.configure(
                 text=f"PYMOSH // NOTHING TO UNDO"
                 )
             return
-        self.image = self.undo_stack.pop()
-        self.update_preview()
+        if amount > len(self.undo_stack):
+            self.restart(status=False)
+        else:
+            for i in range(amount): 
+                self.image = self.undo_stack.pop()
+            self.update_preview()
+        if amount == 1:
+            status = f"PYMOSH // APPLIED UNDO"
+        else:
+            status = f"PYMOSH // APPLIED UNDO x{amount}"
         self.status.configure(
-                    text=f"PYMOSH // APPLIED UNDO"
+                    text=status
                 )   
-    def restart(self):
+    def restart(self, status=True):
         self.image = self.original_image.copy()
         self.undo_stack.clear()
         self.update_preview()
-        self.status.configure(
-            text=f"PYMOSH // APPLIED RESTART"
-        )
+        if status:
+            self.status.configure(
+                text=f"PYMOSH // APPLIED RESTART"
+            )
         
             
 
