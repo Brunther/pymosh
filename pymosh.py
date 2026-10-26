@@ -18,6 +18,7 @@ class PyMosh:
         self.original_image = None
         self.image = None
         self.display_image = None
+        self.undo_stack = []
         
         ##colors
         self.neon = "#aaff00"
@@ -123,6 +124,8 @@ class PyMosh:
             #Make copy for display
             self.image = self.original_image.copy()
             
+            self.undo_stack.clear()
+            
             self.update_preview()
             
             self.status.configure(
@@ -181,20 +184,44 @@ class PyMosh:
         image = self.image.copy() if hasattr(self, 'image') and self.image is not None else self.original_image.copy()
         
         try:
-            self.image, name = run_effect(
-                query, image.copy()
-            )
             
-            self.update_preview()
-            
-            self.status.configure(
-                text=f"PYMOSH // APPLIED {name.upper()}"
-            )
+            if query.lower() in {"r", "restart", "reset"}:
+                self.restart()
+            elif query.lower() in {"u", "z", "undo"}:
+                self.undo()
+            else:
+                self.undo_stack.append(self.image.copy())
+                self.image, name = run_effect(query, image.copy())
+                self.update_preview()
+                
+                self.status.configure(
+                    text=f"PYMOSH // APPLIED {name.upper()}"
+                )
         except ValueError as error:
             self.status.configure(
                 text=f"PYMOSH // {error}"
             )
         return "break"
+    
+    def undo(self):
+        if not self.undo_stack:
+            self.status.configure(
+                text=f"PYMOSH // NOTHING TO UNDO"
+                )
+            return
+        self.image = self.undo_stack.pop()
+        self.update_preview()
+        self.status.configure(
+                    text=f"PYMOSH // APPLIED UNDO"
+                )   
+    def restart(self):
+        self.image = self.original_image.copy()
+        self.undo_stack.clear()
+        self.update_preview()
+        self.status.configure(
+            text=f"PYMOSH // APPLIED RESTART"
+        )
+        
             
 
 root = tk.Tk()
