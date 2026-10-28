@@ -197,7 +197,7 @@ class PyMosh:
         preview = ImageOps.contain(
             self.image,
             (max_width, max_height),
-            method=Image.Resampling.LANCZOS
+            method=Image.Resampling.BILINEAR
         )
         
         self.display_image = ImageTk.PhotoImage(preview)
@@ -239,7 +239,7 @@ class PyMosh:
             return "break"
         
         query = self.search.get().lower().strip()
-        parts = query.split(":", 1)
+        parts = query.split(":")
         command = parts[0]
         try:
             
@@ -254,33 +254,38 @@ class PyMosh:
                 else:
                     self.undo()
             else:
-                result, name = run_effect(parts, self.image)
-                
-                self.undo_stack.append(self.image)
-                self.trim_undo_stack()
-                
-                self.image = result
-                self.update_preview()
-                
-                self.status.configure(
-                    text=f"PYMOSH // APPLIED {name.upper()}"
-                )
+                try:
+                    result, name = run_effect(parts, self.image)
+                    
+                    self.undo_stack.append((self.image, name))
+                    self.trim_undo_stack()
+                    
+                    self.image = result
+                    self.update_preview()
+                    
+                    self.status.configure(
+                        text=f"PYMOSH // APPLIED {name.upper()}"
+                    )
+                except TypeError:
+                    self.status.configure(
+                        text="PYMOSH // ERROR: Too many paramaters given"
+                    )
         except ValueError as error:
             self.status.configure(
-                text=f"PYMOSH // {error}"
+                text=f"PYMOSH // Error: {error}"
             )
         return "break"
         
     def trim_undo_stack(self):
         total = sum(
-            img.width * img.height * len(img.getbands())
+            img[0].width * img[0].height * len(img[0].getbands())
             for img in self.undo_stack
         )
         
         while self.undo_stack and (
             total > self.undo_budget or len(self.undo_stack) > self.max_undos
         ):
-            oldest = self.undo_stack.pop(0)
+            oldest = self.undo_stack.pop(0)[0]
             total -= (oldest.width * oldest.height * len(oldest.getbands()))
     
     def undo(self, amount=1):
@@ -293,10 +298,10 @@ class PyMosh:
             self.restart(status=False)
         else:
             for i in range(amount): 
-                self.image = self.undo_stack.pop()
+                self.image, name = self.undo_stack.pop()
             self.update_preview()
         if amount == 1:
-            status = "PYMOSH // APPLIED UNDO"
+            status = f"PYMOSH // UNDID {name.upper()}"
         else:
             status = f"PYMOSH // APPLIED UNDO x{amount}"
         self.status.configure(
@@ -316,7 +321,7 @@ class PyMosh:
         if event.delta > 0:
             self.change_zoom(self.zoom_step)
         else:
-            self.change_zoom(self.zoom_step * -1)
+            self.change_zoom(-self.zoom_step)
         return "break"
     def change_zoom(self, amount):
         self.zoom = max(self.min_zoom, min(self.max_zoom, self.zoom + amount))

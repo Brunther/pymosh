@@ -2,23 +2,48 @@ from effects import *
 
 REGISTRY = {
     "1": {
-        "name": ("rgb split", "rgb"),
+        "name": ("horizontal rgb split", "rgb split", "horizontal rgb", "hor rgb", "hor"),
         "function": rgb_split,
-        "default": 10
+        "default": (10,)
     },
     "2": {
-        "name": ("gaussian blur", "blur"),
-        "function": blur,
-        "default": 5
+        "name": ("vertical rgb split", "vertical rgb", "vert rgb", "vert"),
+        "function": vertical_rgb_split,
+        "default": (10,)
     },
     "3": {
+        "name": ("gaussian blur", "blur"),
+        "function": blur,
+        "default": (3,)
+    },
+    "4": {
+        "name": ("noise", "ns"),
+        "function": noise,
+        "default": (1,)
+    },
+    "5": {
+        "name": ("slice", "slc"),
+        "function": slice_glitch,
+        "default": (10, 30)
+    },
+    "6": {
+        "name": ("posterize", "poster"),
+        "function": posterize,
+        "default": (3,) 
+    },
+    "9": {
         "name": ("grayscale", "gs"),
         "function": grayscale,
-        "default": 1
+        "default": (None,)
+    },
+    
+    "101": {
+        "name": ("random", "rand"),
+        "function": randomfunc,
+        "default": (1,)
     }
 }
 
-#TODO: allow code input to have multiple parameters (ie 2:10:10)
 
 
 def run_effect(query_parts, img):
@@ -36,12 +61,12 @@ def run_effect(query_parts, img):
         
     if len(query_parts) > 1:
         try:
-            amount = int(query_parts[1].strip())
+            amount = (int(i) for i in query_parts[1::])
         except ValueError:
             raise ValueError("Paramater must be number")
     else:
         amount = effect["default"]
-    
-    result = effect["function"](img, amount)
+        
+    result = effect["function"](img, *amount)
     
     return result, effect["name"][0]
