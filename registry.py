@@ -2,17 +2,17 @@ from effects import *
 
 REGISTRY = {
     "1": {
-        "name": "RGB Split",
+        "name": ("rgb split", "rgb"),
         "function": rgb_split,
         "default": 10
     },
     "2": {
-        "name": "blur",
+        "name": ("gaussian blur", "blur"),
         "function": blur,
         "default": 5
     },
     "3": {
-        "name": "grayscale",
+        "name": ("grayscale", "gs"),
         "function": grayscale,
         "default": 1
     }
@@ -27,7 +27,7 @@ def run_effect(query_parts, img):
     
     if code not in REGISTRY:
         for key, effect in REGISTRY.items():
-            if code == effect["name"].lower():
+            if code.lower() in effect["name"]:
                 code = key
                 break
         else:
@@ -44,4 +44,4 @@ def run_effect(query_parts, img):
     
     result = effect["function"](img, amount)
     
-    return result, effect["name"]
+    return result, effect["name"][0]

@@ -2,7 +2,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog
 
-from PIL import Image, ImageTk
+from PIL import Image, ImageOps, ImageTk
 
 from registry import run_effect
 
@@ -24,6 +24,16 @@ class PyMosh:
         self.neon = "#aaff00"
         self.bg1 = "#333333"
         self.bg2 = "#222222"
+        
+        ##undo budget
+        self.undo_budget = 500 << 20
+        self.max_undos = 50
+        
+        ##zooming
+        self.zoom = 1.0
+        self.min_zoom = 0.2
+        self.max_zoom = 5.0
+        self.zoom_step = 0.1
         
         ##top toolbar
         toolbar = tk.Frame(root, bg=self.bg2)
@@ -79,32 +89,77 @@ class PyMosh:
         )
         
         ##main image display
+        self.preview_frame = tk.Frame(
+            root,
+            bg="#181818"
+        )
+        self.preview_frame.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+            pady=20
+        )
+        
         self.canvas = tk.Label(
-            root, 
+            self.preview_frame, 
             text="Open image to get started",
             bg="#181818",
             fg="#888888"
             )
-        self.canvas.pack(
-            fill="both", 
-            expand=True,
-            padx=20,
-            pady=20
+        self.canvas.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center"
             )
         
         ##bottom status bar
-        self.status = tk.Label(
+        self.status_bar = tk.Frame(
             root,
+            bg=self.bg2,
+            height=42
+        )
+        self.status_bar.pack(fill="x", side="bottom")
+        self.status_bar.pack_propagate(False)
+        
+        self.status = tk.Label(
+            self.status_bar,
             text="PYMOSH // READY",
             font=("Courier", 11, "bold"),
             bg=self.bg2,
             fg=self.neon,
             anchor="w",
             padx=10,
-            pady=8
             )
-        self.status.pack(fill="x", side="bottom")
-    
+        self.status.pack(side="left", fill="y")
+        
+        ##settings button TODO: actually make this work
+        settings_button = tk.Button(
+            self.status_bar,
+            text="Settings",
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        )
+        settings_button.pack(side="right", padx=10, pady=10)
+        
+        ##show effects button TODO: actually make this work
+        effects_button = tk.Button(
+            self.status_bar,
+            text="Effects",
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        )
+        effects_button.pack(side="right", padx=10, pady=10)
+
+        
+        ##ZOOMING
+        self.root.bind_all("<Control-MouseWheel>", self.zoom_image)
+        
     def open_image(self):
         path = filedialog.askopenfilename(
             title="Choose an image",
@@ -137,9 +192,13 @@ class PyMosh:
     def update_preview(self):
         if self.image is None:
             return
-        
-        preview = self.image.copy()
-        preview.thumbnail((820, 520))
+        max_width = int(820 * self.zoom)
+        max_height = int(520 * self.zoom)
+        preview = ImageOps.contain(
+            self.image,
+            (max_width, max_height),
+            method=Image.Resampling.LANCZOS
+        )
         
         self.display_image = ImageTk.PhotoImage(preview)
         
@@ -181,14 +240,12 @@ class PyMosh:
         
         query = self.search.get().lower().strip()
         parts = query.split(":", 1)
-        
-        image = self.image.copy() if hasattr(self, 'image') and self.image is not None else self.original_image.copy()
-        
+        command = parts[0]
         try:
             
-            if parts[0] in {"r", "restart", "reset"}:
+            if command in {"r", "restart", "reset"}:
                 self.restart()
-            elif query.lower().split(":")[0] in {"u", "z", "undo"}:
+            elif command in {"u", "z", "undo"}:
                 if len(parts) == 2:
                     try:
                         self.undo(amount=int(parts[1]))
@@ -197,10 +254,12 @@ class PyMosh:
                 else:
                     self.undo()
             else:
-                self.undo_stack.append(self.image.copy())
-                if len(self.undo_stack) > 20:
-                    self.undo_stack.pop(0) 
-                self.image, name = run_effect(parts, image.copy())
+                result, name = run_effect(parts, self.image)
+                
+                self.undo_stack.append(self.image)
+                self.trim_undo_stack()
+                
+                self.image = result
                 self.update_preview()
                 
                 self.status.configure(
@@ -211,11 +270,23 @@ class PyMosh:
                 text=f"PYMOSH // {error}"
             )
         return "break"
+        
+    def trim_undo_stack(self):
+        total = sum(
+            img.width * img.height * len(img.getbands())
+            for img in self.undo_stack
+        )
+        
+        while self.undo_stack and (
+            total > self.undo_budget or len(self.undo_stack) > self.max_undos
+        ):
+            oldest = self.undo_stack.pop(0)
+            total -= (oldest.width * oldest.height * len(oldest.getbands()))
     
     def undo(self, amount=1):
         if not self.undo_stack:
             self.status.configure(
-                text=f"PYMOSH // NOTHING TO UNDO"
+                text="PYMOSH // NOTHING TO UNDO"
                 )
             return
         if amount > len(self.undo_stack):
@@ -225,7 +296,7 @@ class PyMosh:
                 self.image = self.undo_stack.pop()
             self.update_preview()
         if amount == 1:
-            status = f"PYMOSH // APPLIED UNDO"
+            status = "PYMOSH // APPLIED UNDO"
         else:
             status = f"PYMOSH // APPLIED UNDO x{amount}"
         self.status.configure(
@@ -237,8 +308,20 @@ class PyMosh:
         self.update_preview()
         if status:
             self.status.configure(
-                text=f"PYMOSH // APPLIED RESTART"
+                text="PYMOSH // APPLIED RESTART"
             )
+    
+    ##ZOOMING
+    def zoom_image(self, event):
+        if event.delta > 0:
+            self.change_zoom(self.zoom_step)
+        else:
+            self.change_zoom(self.zoom_step * -1)
+        return "break"
+    def change_zoom(self, amount):
+        self.zoom = max(self.min_zoom, min(self.max_zoom, self.zoom + amount))
+        self.update_preview()
+        
         
             
 
