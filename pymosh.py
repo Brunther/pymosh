@@ -1,7 +1,8 @@
 import os
 import tkinter as tk
-from tkinter import filedialog
-
+import inspect
+from tkinter import filedialog, ttk
+from registry import REGISTRY
 from PIL import Image, ImageOps, ImageTk
 
 from registry import run_effect
@@ -22,6 +23,7 @@ class PyMosh:
         
         ##colors
         self.neon = "#aaff00"
+        self.bg0 = "#181818"
         self.bg1 = "#333333"
         self.bg2 = "#222222"
         
@@ -38,6 +40,9 @@ class PyMosh:
         ##top toolbar
         toolbar = tk.Frame(root, bg=self.bg2)
         toolbar.pack(fill="x")
+        
+        ##misc
+        self.last_status_text = None
         
         open_button = tk.Button(
             toolbar,
@@ -91,7 +96,7 @@ class PyMosh:
         ##main image display
         self.preview_frame = tk.Frame(
             root,
-            bg="#181818"
+            bg=self.bg0
         )
         self.preview_frame.pack(
             fill="both",
@@ -103,7 +108,7 @@ class PyMosh:
         self.canvas = tk.Label(
             self.preview_frame, 
             text="Open image to get started",
-            bg="#181818",
+            bg=self.bg0,
             fg="#888888"
             )
         self.canvas.place(
@@ -145,16 +150,17 @@ class PyMosh:
         settings_button.pack(side="right", padx=10, pady=10)
         
         ##show effects button TODO: actually make this work
-        effects_button = tk.Button(
+        self.effects_button = tk.Button(
             self.status_bar,
             text="Effects",
+            command=self.show_effects,
             bg=self.bg1,
             fg="white",
             relief="flat",
             padx=16,
             pady=8
         )
-        effects_button.pack(side="right", padx=10, pady=10)
+        self.effects_button.pack(side="right", padx=10, pady=10)
 
         
         ##ZOOMING
@@ -266,7 +272,8 @@ class PyMosh:
                     self.status.configure(
                         text=f"PYMOSH // APPLIED {name.upper()}"
                     )
-                except TypeError:
+                except TypeError as e:
+                    print(e)
                     self.status.configure(
                         text="PYMOSH // ERROR: Too many paramaters given"
                     )
@@ -327,9 +334,172 @@ class PyMosh:
         self.zoom = max(self.min_zoom, min(self.max_zoom, self.zoom + amount))
         self.update_preview()
         
-        
-            
+    ##show effects tab
+    def show_effects(self):
+        if getattr(self, "effects_open", False):
+            self.close_effects()
+            return
+        self.effects_open = True
 
+        self.last_status_text = self.status.cget("text")
+        
+        self.preview_frame.pack_forget()
+        
+        self.effects_frame = tk.Frame(self.root, bg=self.bg0)
+        self.effects_frame.pack(
+            fill="both", expand=True, padx=20, pady=20
+        )
+        
+        ##Header
+        tk.Label(
+            self.effects_frame,
+            text="EFFECTS",
+            font=("Courier", 18, "bold"),
+            bg=self.bg0,
+            fg=self.neon
+        ).pack(anchor="w", pady=(0, 10))
+        
+        ##scrollable shi
+        canvas = tk.Canvas(
+            self.effects_frame,
+            bg=self.bg0,
+            highlightthickness=0
+        )
+        scrollbar = tk.Scrollbar(
+            self.effects_frame,
+            orient="vertical",
+            command=canvas.yview,
+            width=20,
+            troughcolor="#111111",
+            bg=self.neon,
+            activebackground="#ccff66",
+            relief="flat",
+            bd=0
+        )
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        content = tk.Frame(canvas, bg=self.bg0)
+        content_id = canvas.create_window(
+            (0, 0), window=content, anchor="nw"
+        )
+        
+        content.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.bind(
+            "<Configure>",
+            lambda e: canvas.itemconfigure(content_id, width=e.width)
+        )
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        def on_mousewheel(event):
+            canvas.yview_scroll(
+                -1 * (event.delta // 120),
+                "units"
+            )
+        canvas.bind("<MouseWheel>", on_mousewheel)
+        content.bind("<MouseWheel>", on_mousewheel)
+        
+        def bind_mousewheel(widget):
+            widget.bind("<MouseWheel>", on_mousewheel) 
+            for child in widget.winfo_children():
+                bind_mousewheel(child)
+        
+        ##entry generator
+        for code, effect in REGISTRY.items():
+            names = effect["name"]
+            func = effect["function"]
+            defaults = effect.get("default", ())
+            description = effect["description"]
+
+            if not isinstance(defaults, (tuple, list)):
+                defaults = (defaults,)
+            
+            params = list(inspect.signature(func).parameters.values())[1:]
+            
+            card = tk.Frame(
+                content,
+                bg=self.bg2,
+                padx=12,
+                pady=10
+            )
+            card.pack(fill="x", padx=2, pady=5)
+
+            tk.Label(
+                card,
+                text=f"[{code}] {names[0].upper()}",
+                font=("Courier", 14, "bold"),
+                bg=self.bg2,
+                fg=self.neon
+            ).pack(anchor="w")
+            
+            tk.Label(
+                card,
+                text=f"Aliases: {', '.join(names[1::])}",
+                font=("Courier", 12, "bold"),
+                bg=self.bg2,
+                fg="white"
+            ).pack(anchor="w", pady=(3, 0))
+            
+            tk.Label(
+                card,
+                text=description,
+                font=("Courier", 10),
+                bg=self.bg2,
+                fg="#bbbbbb",
+                wraplength=650,
+                justify="left"
+            ).pack(anchor="w", pady=5)
+            
+            tk.Label(
+                card,
+                text="Parameter defaults:",
+                font=("Courier", 10),
+                bg=self.bg2,
+                fg="white",
+            ).pack(anchor="w")
+            
+            for i, param in enumerate(params):
+                if i < len(defaults):
+                    default = repr(defaults[i])
+                elif param.default is not inspect.Parameter.empty:
+                    default = repr(param.default)
+                else:
+                    default = "required"
+                
+                tk.Label(
+                    card,
+                    text=f"{param.name}: {default}",
+                    font=("Courier", 9),
+                    bg=self.bg2,
+                    fg="#bbbbbb"
+                ).pack(anchor="w")
+        
+        bind_mousewheel(content)
+        
+        
+        self.effects_button.configure(text="Back to editing")
+        self.status.configure(text="PYMOSH // EFFECT REFERENCE")
+    
+    def close_effects(self):
+        self.effects_frame.destroy()
+        self.effects_open = False
+        self.root.unbind_all("<MouseWheel>")
+        
+        self.preview_frame.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+            pady=20
+        )
+        
+        self.effects_button.configure(text="Effects")
+        self.status.configure(text=self.last_status_text)
+    
+    
 root = tk.Tk()
 app = PyMosh(root)
 root.mainloop()

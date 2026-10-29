@@ -4,7 +4,11 @@ from PIL import Image, ImageChops, ImageFilter, ImageOps
 
 
 def random_func(img, iterations):
-    randlist = [rgb_split, vertical_rgb_split, blur, noise, posterize, slice_glitch, horizontal_shift, vertical_shift, solarize, pixelate, block_corrupt] ##excluding grayscale for obvious reasons
+    ##excluding grayscale for obvious reasons
+    randlist = [rgb_split, vertical_rgb_split, blur, noise, 
+                posterize, slice_glitch, horizontal_shift, 
+                vertical_shift, solarize, pixelate, block_corrupt, 
+                jitter, channel_shuffle]
     
     function = random.choice(randlist)
     image = function(img)
@@ -35,14 +39,14 @@ def vertical_rgb_split(img, shift=10):
 def blur(img, rad=3):
     return img.filter(ImageFilter.GaussianBlur(radius=rad))
 
-def grayscale(img, amount=None):
+def grayscale(img):
     return img.convert("L").convert("RGB")
 
-def noise(img, amount=1):
+def noise(img, amount=1, opacity=1):
     width, height = img.size
     
     noiselayer = Image.effect_noise((width, height), amount * 100).convert("RGB")
-    return Image.blend(img, noiselayer, alpha=0.1)
+    return Image.blend(img, noiselayer, alpha=(opacity * 0.1))
 
 def posterize(img, bits=3):
     if not 1 <= bits <= 8:
@@ -85,8 +89,8 @@ def pixelate(img, block_size=8):
 
 def block_corrupt(img, blocks=12, max_size=50):
     image = img.convert("RGB")
-    result = image.copy()
     width, height = image.size
+    result = image.copy()
     
     for i in range(blocks):
         w = random.randint(5, min(max_size, width))
@@ -100,3 +104,24 @@ def block_corrupt(img, blocks=12, max_size=50):
         block = image.crop((sx, sy, sx + w, sy + h))
         result.paste(block, (dx, dy))
     return result
+
+def jitter(img, band_height=8, max_shift=30):
+    image = img.convert("RGB")
+    width, height = image.size
+    result = image.copy()
+    
+    for y in range(0, height, band_height):
+        bottom = min(y + band_height, height)
+        band = image.crop((0, y, width, bottom))
+        
+        shift = random.randint(-max_shift, max_shift)
+        band = ImageChops.offset(band, shift, 0)
+        
+        result.paste(band, (0, y))
+        
+    return result
+
+def channel_shuffle(img):
+    channels = list(img.convert("RGB").split())
+    random.shuffle(channels)
+    return Image.merge("RGB", channels)
