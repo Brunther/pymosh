@@ -17,12 +17,14 @@ REGISTRY = {
         "name": ("gaussian blur", "blur"),
         "function": blur,
         "default": 3,
+        "allowsfloat": True,
         "description": "Blurs image by a factor of first parameter."
     },
     "4": {
         "name": ("noise", "ns"),
         "function": noise,
         "default": (1, 1),
+        "allowsfloat": True,
         "description": "Adds noise to image. Parameter 1 increases amount of noise, parameter 2 increases opacity."
     },
     "5": {
@@ -84,6 +86,33 @@ REGISTRY = {
         "function": channel_shuffle,
         "description": "Seperates RGB color channels of image and randomly shuffles them."
     },
+    "15": {
+        "name": ("pixel spread", "spread"),
+        "function": pixel_spread,
+        "default": 10,
+        "description": "Randomly spreads pixels of image by distance of parameter 1."
+    },
+    "16": {
+      "name": ("ascii", "asc"),
+      "function": ascii,
+      "default": 15,
+      "description": "Converts image into colored ascii"  
+    },
+    "17": {
+        "name": ("waves", "wave", "wv"),
+        "function": waves,
+        "default": (15, 5),
+        "allowsfloat": True,
+        "description": ""
+        
+    },
+    "18": {
+        "name": ("resize", "rsz", "re"),
+        "function": resize,
+        "default": 2,
+        "allowsfloat": True,
+        "description": "resizes image by a factor of parameter. Upscaling uses bicubic, downscaling uses Lanczos"
+    },
     
     "101": {
         "name": ("random", "rand", "randy"),
@@ -119,12 +148,26 @@ def run_effect(query_parts, img):
     
     for i, param in enumerate(query_parts[1::]):
         if i >= len(amount):
-            raise ValueError(f"Too many parameters. {effect['name'][0].upper()} takes only {len(amount)}.")
+            if len(amount) > 0:
+                raise ValueError(f"Too many parameters. {effect['name'][0].upper()} takes only {len(amount)}.")
+            else:
+                raise ValueError(f"Too many parameters. {effect['name'][0].upper()} doesn't take any.")
         if param != '':
-            try:
-                amount[i] = int(param)
-            except ValueError:
-                raise ValueError("Parameter must be number")
+            if effect.get("allowsfloat", False):
+                try:
+                    amount[i] = float(param)
+                except ValueError:
+                    raise ValueError("Parameter must be a number")
+            else:
+                try:
+                    amount[i] = int(param)
+                except ValueError:
+                    try:
+                        float(param)
+                    except ValueError:
+                        raise ValueError("Parameter must be a number")
+                    else:
+                        raise ValueError("Parameter must be an integer")
     result = effect["function"](img, *amount) if amount else effect["function"](img)
     
     return result, effect["name"][0]
