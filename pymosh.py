@@ -1,10 +1,10 @@
-import os
+from pathlib import Path
 import json
 import tkinter as tk
 import inspect
 from tkinter import filedialog, ttk
 from registry import REGISTRY
-from PIL import Image, ImageOps, ImageTk
+from PIL import Image, ImageOps, ImageTk, UnidentifiedImageError
 
 from registry import run_effect
 
@@ -49,7 +49,9 @@ class PyMosh:
         
         
         ##settings
-        self.settings_file = "misc/settings.json"
+        pymosh_dir = Path.home() / 'AppData/Roaming/PYMOSH'
+        
+        self.settings_file = pymosh_dir / 'settings.json'
         
         self.default_settings = {
                     "preview_sampling": "NEAREST NEIGHBOR",
@@ -111,6 +113,18 @@ class PyMosh:
             "<Return>",
             self.execute_effect
         )
+        
+        undo_button = tk.Button(
+            toolbar,
+            text="Undo",
+            command=self.undo,
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        )
+        undo_button.pack(side="right", padx=10, pady=10)
         
         ##main image display
         self.preview_frame = tk.Frame(
@@ -195,6 +209,8 @@ class PyMosh:
         ##user cancel
         if not path:
             return
+        else:
+            path = Path(path)
         
         try:
             with Image.open(path) as img:
@@ -208,10 +224,12 @@ class PyMosh:
             self.update_preview()
             
             self.status.configure(
-                text=(f"PYMOSH // {os.path.basename(path).upper()} // {self.image.width}x{self.image.height} PX")
+                text=(f"PYMOSH // {path.name.upper()} // {self.image.width}x{self.image.height} PX")
             )
+        except UnidentifiedImageError:
+            self.status.configure(text="PYMOSH // Error: Cannot identify image file")
         except Exception as error:  # noqa: BLE001
-            self.status.configure(text=f"Error // {error}")
+            self.status.configure(text=f"PYMOSH // Error: {error}")
             
     def update_preview(self):
         if self.image is None:
@@ -687,23 +705,22 @@ class PyMosh:
         self.status.configure(text=self.last_status_text)
         
     def load_settings_file(self):
-        if os.path.exists(self.settings_file):
+        self.settings = self.default_settings.copy()
+        
+        if self.settings_file.exists():
             try:
                 with open(self.settings_file, "r") as file:
                     settings = json.load(file)
+                    self.settings.update(settings)
             except (json.JSONDecodeError, OSError):
-                settings = self.default_settings.copy()
+                self.save_settings()
         else:
-            settings = self.default_settings.copy()
-        
-        self.settings = self.default_settings.copy()
-        self.settings.update(settings)
+            self.save_settings()
         
         self.preview_sampling = self.settings["preview_sampling"]
     
     def save_settings(self):
-        os.makedirs(os.path.dirname(self.settings_file), exist_ok=True)
-        print("saved settings")
+        self.settings_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.settings_file, "w") as file:
             json.dump(self.settings, file, indent=4)
         

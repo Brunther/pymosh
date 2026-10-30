@@ -4,13 +4,13 @@ REGISTRY = {
     "1": {
         "name": ("horizontal rgb split", "rgb split", "horizontal rgb", "hor rgb", "hor", "rgb"),
         "function": rgb_split,
-        "default": 10,
+        "default": 6,
         "description": "Splits image into red, green, & blue layers, then shifts them horizontally. Parameter increases shift amount."
     },
     "2": {
         "name": ("vertical rgb split", "vertical rgb", "vert rgb", "vert split"),
         "function": vertical_rgb_split,
-        "default": 10,
+        "default": 6,
         "description": "Splits image into red, green, & blue layers, then shifts them vertically. Parameter increases shift amount."
     },
     "3": {
@@ -107,11 +107,17 @@ REGISTRY = {
         
     },
     "18": {
-        "name": ("resize", "rsz", "re"),
-        "function": resize,
+        "name": ("refactor", "ref", "rf",),
+        "function": refactor,
         "default": 2,
         "allowsfloat": True,
         "description": "resizes image by a factor of parameter. Upscaling uses bicubic, downscaling uses Lanczos"
+    },
+    "19": {
+      "name": ("resize", "res", "rsz"),
+      "function": resize,
+      "default": (800, 600),
+      "description": "resizes image to width of first parameter and height of second. May stretch image."
     },
     
     "101": {

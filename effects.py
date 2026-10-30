@@ -18,7 +18,7 @@ def random_func(img, iterations):
             image = function(image)
     return image
 
-def rgb_split(img, shift_px=10):
+def rgb_split(img, shift_px=6):
     
     red, green, blue = img.split()
     
@@ -27,7 +27,7 @@ def rgb_split(img, shift_px=10):
     
     return Image.merge("RGB", (red, green, blue))
 
-def vertical_rgb_split(img, shift_px=10):
+def vertical_rgb_split(img, shift_px=6):
     
     red, green, blue = img.split()
     
@@ -174,7 +174,7 @@ def ascii(img, font_size=15):
             )
     return result
 
-def resize(img, resize_factor=2):
+def refactor(img, resize_factor=2):
     width, height = img.size
     
     resize_factor = abs(resize_factor)
@@ -191,6 +191,23 @@ def resize(img, resize_factor=2):
         method = Image.Resampling.LANCZOS
         
     return img.resize((new_width, new_height), resample=method)
+
+def resize(img, width, height):
+    if 0 in (width, height):
+        return img
+    
+    oldwidth, oldheight = img.size
+    
+    widthdif = oldwidth / width
+    heightdif = oldheight / height
+    
+    if widthdif / heightdif >= width / height:
+        method = Image.Resampling.BICUBIC
+    else:
+        method = Image.Resampling.LANCZOS
+    
+    
+    return img.resize((width, height), resample=method)
     
 def waves(img, amplitude=15, frequency=5):
     image = img.convert("RGB")
