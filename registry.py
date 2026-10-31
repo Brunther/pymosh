@@ -67,6 +67,7 @@ REGISTRY = {
     "11": {
         "name": ("grayscale", "gs"),
         "function": grayscale,
+        "allowsrandom": False,
         "description": "Converts image to grayscale."
     },
     "12": {
@@ -96,6 +97,7 @@ REGISTRY = {
       "name": ("ascii", "asc"),
       "function": ascii,
       "default": 15,
+      "allowsrandom": False,
       "description": "Converts image into colored ascii"  
     },
     "17": {
@@ -111,19 +113,29 @@ REGISTRY = {
         "function": refactor,
         "default": 2,
         "allowsfloat": True,
+        "allowsrandom": False,
         "description": "resizes image by a factor of parameter. Upscaling uses bicubic, downscaling uses Lanczos"
     },
     "19": {
       "name": ("resize", "res", "rsz"),
       "function": resize,
       "default": (800, 600),
+      "allowsrandom": False,
       "description": "resizes image to width of first parameter and height of second. May stretch image."
+    },
+    "20": {
+        "name": ("halftones", "halftone", "hlft", "hlf"),
+        "function": halftones,
+        "default": (8, 5),
+        "allowsrandom": False,
+        "description": "converts image into halftone dots. first parameter changes dot size, second changes radius."
     },
     
     "101": {
         "name": ("random", "rand", "randy"),
         "function": random_func,
         "default": 1,
+        "allowsrandom": False,
         "description": "Applies a random effect (with default values) to image. Parameter increases number of effects to apply"
     }
 }
@@ -176,4 +188,10 @@ def run_effect(query_parts, img):
                         raise ValueError("Parameter must be an integer")
     result = effect["function"](img, *amount) if amount else effect["function"](img)
     
-    return result, effect["name"][0]
+    
+    if effect["function"] == random_func:
+        result, name = result       
+    else: 
+        name = effect["name"][0]
+        
+    return result, name

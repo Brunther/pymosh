@@ -2,21 +2,41 @@ import random
 import math
 from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageFont, ImageDraw, ImageEnhance
 
-
-def random_func(img, iterations):
-    ##excluding grayscale for obvious reasons
-    randlist = [rgb_split, vertical_rgb_split, blur, noise, 
-                posterize, slice_glitch, horizontal_shift, 
-                vertical_shift, solarize, pixelate, block_corrupt, 
-                jitter, channel_shuffle, pixel_spread, waves]
+#TODO: numpy optimization (?)
+def random_func(img, iterations=1):
+    from registry import REGISTRY
+    randlist = [effect["function"] for effect in REGISTRY.values() if effect.get("allowsrandom") is not False]
     
     function = random.choice(randlist)
     image = function(img)
+    returnstring = function.__name__
+    
     if iterations > 1:
+        funcname = [returnstring]
+        prev = None
         for i in range(iterations - 1):
-            function = random.choice(randlist)
+            choices = [f for f in randlist if f is not prev]
+            function = random.choice(choices)
+            
+            prev = function
+            
             image = function(image)
-    return image
+            
+            if iterations <= 4:
+                funcname.append(function.__name__)
+        
+        if iterations <= 4:
+            returnstring = []
+            for effect in REGISTRY.values():    
+                for func in funcname:
+                    if effect["function"].__name__ == func:
+                        returnstring.append(effect["name"][0])
+            returnstring = ', '.join(returnstring)
+                        
+        else:           
+            returnstring = f"random x{iterations}"
+            
+    return image, returnstring
 
 def rgb_split(img, shift_px=6):
     
@@ -192,7 +212,7 @@ def refactor(img, resize_factor=2):
         
     return img.resize((new_width, new_height), resample=method)
 
-def resize(img, width, height):
+def resize(img, width=800, height=600):
     if 0 in (width, height):
         return img
     
@@ -220,4 +240,43 @@ def waves(img, amplitude=15, frequency=5):
         
         row = image.crop((0, y, width, y + 1))
         result.paste(ImageChops.offset(row, offset, 0), (0, y))
+    return result
+
+def halftones(img, dot_size=8, max_radius=5):
+    gray = img.convert("L")
+    width, height = img.size
+    
+    result = Image.new("RGB", img.size, (255, 255, 255))
+    draw = ImageDraw.Draw(result)
+    
+    for y in range(0, height, dot_size):
+        for x in range(0, width, dot_size):
+            
+            brightness = gray.getpixel((
+                min(x + dot_size // 2, width - 1),
+                min(y + dot_size // 2, height - 1)
+            ))
+
+            radius = (1 - brightness / 255) * max_radius
+            
+            if radius < 0.5:
+                continue
+            
+            color = img.getpixel((
+                min(x + dot_size // 2, width - 1),
+                min(y + dot_size // 2, height - 1)
+            ))
+            
+            center_x = x + dot_size // 2
+            center_y = y + dot_size // 2
+            
+            draw.ellipse(
+                (
+                center_x - radius,
+                center_y - radius,
+                center_x + radius,
+                center_y + radius
+                ),
+                fill=color
+            )
     return result
