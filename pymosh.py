@@ -1,12 +1,12 @@
-from pathlib import Path
+import inspect
 import json
 import tkinter as tk
-import inspect
-from tkinter import filedialog, ttk
-from registry import REGISTRY
+from pathlib import Path
+from tkinter import filedialog
+
 from PIL import Image, ImageOps, ImageTk, UnidentifiedImageError
 
-from registry import run_effect
+from registry import REGISTRY, run_effect
 
 
 class PyMosh:
@@ -33,6 +33,8 @@ class PyMosh:
         self.max_undos = 50
         
         ##zooming
+        self.zooming = False
+        self.zoom_after_id = None
         self.zoom = 1.0
         self.min_zoom = 0.2
         self.max_zoom = 5.0
@@ -55,6 +57,9 @@ class PyMosh:
         
         self.default_settings = {
                     "preview_sampling": "NEAREST NEIGHBOR",
+                    "min_zoom": 0.2,
+                    "max_zoom": 5.0,
+                    "zoom_step": 0.1,
                 }
         
         self.load_settings_file()
@@ -236,10 +241,16 @@ class PyMosh:
             return
         max_width = int(820 * self.zoom)
         max_height = int(520 * self.zoom)
+        
+        if self.zooming:
+            method=Image.Resampling.BILINEAR
+        else:
+            method=self.preview_methods[self.preview_sampling]
+        
         preview = ImageOps.contain(
             self.image,
             (max_width, max_height),
-            method=self.preview_methods[self.preview_sampling]
+            method=method
         )
         
         self.display_image = ImageTk.PhotoImage(preview)
@@ -312,7 +323,7 @@ class PyMosh:
                     self.status.configure(
                         text=f"PYMOSH // Error: {error}"
                         )
-                except Exception as error:
+                except Exception as error: 
                     print(type(error).__name__, error)
                     self.status.configure(
                         text=f"PYMOSH // ERROR: {type(error).__name__}"
@@ -372,6 +383,18 @@ class PyMosh:
         return "break"
     def change_zoom(self, amount):
         self.zoom = max(self.min_zoom, min(self.max_zoom, self.zoom + amount))
+        self.zooming = True
+        
+        if self.zoom_after_id is not None:
+            self.root.after_cancel(self.zoom_after_id)
+        
+        self.update_preview()
+        
+        self.zoom_after_id = self.root.after(150, self.finish_zoom)
+    
+    def finish_zoom(self):
+        self.zoom_after_id = None
+        self.zooming = False
         self.update_preview()
         
     ##effects tab
@@ -429,7 +452,6 @@ class PyMosh:
             "<Configure>",
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
-        
         canvas.bind(
             "<Configure>",
             lambda e: canvas.itemconfigure(content_id, width=e.width)
@@ -577,6 +599,18 @@ class PyMosh:
             fg=self.neon
         ).pack(anchor="w", pady=(0, 10))
         
+        tk.Button(
+            self.settings_frame,
+            text="SAVE SETTINGS",
+            font=("Courier", 14),
+            command=self.save_settings,
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        ).pack(anchor="w")
+        
         ##scrollable shi
         canvas = tk.Canvas(
             self.settings_frame,
@@ -652,14 +686,14 @@ class PyMosh:
                 name for name, method in self.preview_methods.items()
                 if method == self.preview_methods[self.preview_sampling]
             )
-        )
+        )     
+        
         def change_sampling(selected):
             self.preview_sampling = selected
             self.settings["preview_sampling"] = selected
             
             self.status.configure(text=f"PYMOSH // APPLIED {self.preview_sampling} SAMPLING")
             self.update_preview()
-            self.save_settings()
         
         sampling_menu = tk.OptionMenu(
             content,
@@ -686,9 +720,145 @@ class PyMosh:
         )
         sampling_menu.pack(anchor="w", pady=5)
         
+        
+        ##zoom settings
+        def change_min_zoom(value):
+            self.min_zoom = float(value)
+            self.settings["min_zoom"] = float(value)
+            
+            self.zoom = max(self.zoom, self.min_zoom)
+            
+            self.update_preview()
+                    
+        def change_max_zoom(value):
+            self.max_zoom = float(value)
+            self.settings["max_zoom"] = float(value)
+            
+            self.zoom = min(self.zoom, self.max_zoom)
+            
+            self.update_preview()
+        
+        def change_zoom_step(value):
+            self.zoom_step = float(value)
+            self.settings["zoom_step"] = float(value)        
+                    
+                    
+        tk.Label(
+        content,
+        text="ZOOM",
+        font=("Courier", 14, "bold"),
+        bg=self.bg0,
+        fg=self.neon
+        ).pack(anchor="w", pady=(15, 5))
+
+        #min zoom
+        tk.Label(
+        content,
+        text="MIN ZOOM",
+        font=("Courier", 10),
+        bg=self.bg0,
+        fg="white"
+        ).pack(anchor="w")
+        
+        min_zoom_slider = tk.Scale(
+        content,
+        from_=0.1,
+        to=1,
+        orient="horizontal",
+        resolution=0.05,
+        command=change_min_zoom
+        )
+        min_zoom_slider.configure(
+            bg=self.bg2,
+            fg=self.neon,
+            troughcolor="#222222",
+            activebackground="#ccff66",
+            highlightthickness=1,
+            highlightbackground="white",
+            highlightcolor=self.neon,
+            relief="flat",
+            font=("Courier", 10, "bold"),
+            width=10,
+            sliderlength=16,
+            length=180
+        )
+        min_zoom_slider.set(self.settings.get("min_zoom", self.min_zoom))
+        min_zoom_slider.pack(anchor="w", pady=5)
+        
+        #max zoom
+        tk.Label(
+        content,
+        text="MAX ZOOM",
+        font=("Courier", 10),
+        bg=self.bg0,
+        fg="white"
+        ).pack(anchor="w")
+        
+        max_zoom_slider = tk.Scale(
+        content,
+        from_=1,
+        to=10,
+        orient="horizontal",
+        resolution=0.1,
+        command=change_max_zoom
+        )
+        max_zoom_slider.configure(
+            bg=self.bg2,
+            fg=self.neon,
+            troughcolor="#222222",
+            activebackground="#ccff66",
+            highlightthickness=1,
+            highlightbackground="white",
+            highlightcolor=self.neon,
+            relief="flat",
+            font=("Courier", 10, "bold"),
+            width=10,
+            sliderlength=16,
+            length=180
+        )
+        max_zoom_slider.set(self.settings.get("max_zoom", self.max_zoom))
+        max_zoom_slider.pack(anchor="w", pady=5)
+        
+        #zoom step
+        tk.Label(
+        content,
+        text="ZOOM STEP",
+        font=("Courier", 10),
+        bg=self.bg0,
+        fg="white"
+        ).pack(anchor="w")
+        
+        zoom_step_slider = tk.Scale(
+        content,
+        from_=0.05,
+        to=1,
+        orient="horizontal",
+        resolution=0.05,
+        command=change_zoom_step
+        )
+        zoom_step_slider.configure(
+            bg=self.bg2,
+            fg=self.neon,
+            troughcolor="#222222",
+            activebackground="#ccff66",
+            highlightthickness=1,
+            highlightbackground="white",
+            highlightcolor=self.neon,
+            relief="flat",
+            font=("Courier", 10, "bold"),
+            width=10,
+            sliderlength=16,
+            length=180
+        )
+        zoom_step_slider.set(self.settings.get("zoom_step", self.zoom_step))
+        zoom_step_slider.pack(anchor="w", pady=5)
+        
+        
+        
+        
         self.settings_button.configure(text="Back to editing")
         self.status.configure(text="PYMOSH // SETTINGS")
-    
+        
     def close_settings(self):
         self.settings_frame.destroy()
         self.settings_open = False
@@ -718,11 +888,15 @@ class PyMosh:
             self.save_settings()
         
         self.preview_sampling = self.settings["preview_sampling"]
+        self.min_zoom = self.settings["min_zoom"]
+        self.max_zoom = self.settings["max_zoom"]
+        self.zoom_step = self.settings["zoom_step"]
     
     def save_settings(self):
         self.settings_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.settings_file, "w") as file:
             json.dump(self.settings, file, indent=4)
+        self.status.configure(text="PYMOSH // SETTINGS SAVED")
         
         
 root = tk.Tk()

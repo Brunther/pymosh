@@ -1,6 +1,16 @@
-import random
 import math
-from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageFont, ImageDraw, ImageEnhance
+import random
+
+from PIL import (
+    Image,
+    ImageChops,
+    ImageDraw,
+    ImageEnhance,
+    ImageFilter,
+    ImageFont,
+    ImageOps,
+)
+
 
 #TODO: numpy optimization (?)
 def random_func(img, iterations=1):
@@ -9,10 +19,9 @@ def random_func(img, iterations=1):
     
     function = random.choice(randlist)
     image = function(img)
-    returnstring = function.__name__
+    funcname = [function.__name__]
     
     if iterations > 1:
-        funcname = [returnstring]
         prev = None
         for i in range(iterations - 1):
             choices = [f for f in randlist if f is not prev]
@@ -24,17 +33,15 @@ def random_func(img, iterations=1):
             
             if iterations <= 4:
                 funcname.append(function.__name__)
-        
-        if iterations <= 4:
-            returnstring = []
-            for effect in REGISTRY.values():    
-                for func in funcname:
-                    if effect["function"].__name__ == func:
-                        returnstring.append(effect["name"][0])
-            returnstring = ', '.join(returnstring)
-                        
-        else:           
-            returnstring = f"random x{iterations}"
+            else:           
+                funcname = f"random x{iterations}"
+    if iterations <= 4:
+        returnstring = []
+        for effect in REGISTRY.values():    
+            for func in funcname:
+                if effect["function"].__name__ == func:
+                    returnstring.append(effect["name"][0])
+        returnstring = ', '.join(returnstring)           
             
     return image, returnstring
 
