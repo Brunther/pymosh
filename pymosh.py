@@ -1,6 +1,7 @@
 import inspect
 import json
 import tkinter as tk
+import traceback
 from pathlib import Path
 from tkinter import filedialog
 
@@ -15,7 +16,7 @@ class PyMosh:
         self.root.title("PYMOSH")
         self.root.geometry("900x650")
         self.root.configure(bg="#141414")
-        
+
         ##image
         self.original_image = None
         self.image = None
@@ -323,8 +324,8 @@ class PyMosh:
                     self.status.configure(
                         text=f"PYMOSH // Error: {error}"
                         )
-                except Exception as error: 
-                    print(type(error).__name__, error)
+                except Exception as error: # noqa: BLE001
+                    traceback.print_exc()
                     self.status.configure(
                         text=f"PYMOSH // ERROR: {type(error).__name__}"
                         )

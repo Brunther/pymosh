@@ -56,7 +56,6 @@ REGISTRY = {
         "function": pixelate,
         "default": 8,
         "description": "pixelates image by a factor of parameter. Uses nearest neighbor sampling"
-    
     },
     "10": {
         "name": ("block corrupt", "corrupt"),
@@ -94,11 +93,11 @@ REGISTRY = {
         "description": "Randomly spreads pixels of image by distance of parameter 1."
     },
     "16": {
-      "name": ("ascii", "asc"),
-      "function": ascii,
-      "default": 15,
-      "allowsrandom": False,
-      "description": "Converts image into colored ascii"  
+        "name": ("ascii", "asc"),
+        "function": ascii,
+        "default": 15,
+        "allowsrandom": False,
+        "description": "Converts image into colored ascii"  
     },
     "17": {
         "name": ("waves", "wave", "wv"),

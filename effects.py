@@ -34,7 +34,7 @@ def random_func(img, iterations=1):
             if iterations <= 4:
                 funcname.append(function.__name__)
             else:           
-                funcname = f"random x{iterations}"
+                returnstring = f"random x{iterations}"
     if iterations <= 4:
         returnstring = []
         for effect in REGISTRY.values():    
@@ -42,7 +42,7 @@ def random_func(img, iterations=1):
                 if effect["function"].__name__ == func:
                     returnstring.append(effect["name"][0])
         returnstring = ', '.join(returnstring)           
-            
+    
     return image, returnstring
 
 def rgb_split(img, shift_px=6):
