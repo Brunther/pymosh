@@ -14,7 +14,7 @@ REGISTRY = {
         "description": "Splits image into red, green, & blue layers, then shifts them vertically. Parameter increases shift amount."
     },
     "3": {
-        "name": ("gaussian blur", "blur"),
+        "name": ("gaussian blur", "blur", "gaussian"),
         "function": blur,
         "default": 3,
         "allowsfloat": True,

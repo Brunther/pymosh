@@ -24,7 +24,8 @@ class PyMosh:
         self.undo_stack = []
         
         ##colors
-        self.neon = "#aaff00"
+        self.accent1 = "#aaff00"
+        self.accent2 = "#ccff66"
         self.bg0 = "#181818"
         self.bg1 = "#333333"
         self.bg2 = "#222222"
@@ -61,6 +62,7 @@ class PyMosh:
                     "min_zoom": 0.2,
                     "max_zoom": 5.0,
                     "zoom_step": 0.1,
+                    "theme_accent": "Neon Green"
                 }
         
         self.load_settings_file()
@@ -71,138 +73,148 @@ class PyMosh:
             "LANCZOS": Image.Resampling.LANCZOS
         }
         
-        open_button = tk.Button(
-            toolbar,
-            text="Open Image",
-            command=self.open_image,
-            bg=self.bg1,
-            fg="white",
-            relief="flat",
-            padx=16,
-            pady=8
-        )
-        open_button.pack(side="left", padx=10, pady=10)
-        
-        save_button = tk.Button(
-            toolbar,
-            text="Save Image",
-            command=self.save_image,
-            bg=self.bg1,
-            fg="white",
-            relief="flat",
-            padx=16,
-            pady=8
-        )
-        save_button.pack(side="left", padx=10, pady=10)
-        
-        header = tk.Label(
-            toolbar,
-            text="PYMOSH",
-            font=("Courier", 24, "bold"),
-            fg=self.neon,
-            bg=self.bg2
+        self.themes = {
+            "Neon Green": ("#aaff00", "#ccff66"),
+            "Neon Purple": ("#ee00ee", "#ff00ff"),
+            "Forest Green": (),
+            "Ocean Blue": (),
+        }
+        def build_gui(self):
+            open_button = tk.Button(
+                toolbar,
+                text="Open Image",
+                command=self.open_image,
+                bg=self.bg1,
+                fg="white",
+                relief="flat",
+                padx=16,
+                pady=8
             )
-        header.place(relx=0.5, rely=0.5, anchor="center")
-        
-        #TODO: search autocomplete / show what each parameter does
-        self.search = tk.Entry(
-            toolbar,
-            font=("Courier", 12, "bold"),
-            fg=self.neon,
-            bg=self.bg1,
-            relief="ridge",
-            insertbackground=self.neon
+            open_button.pack(side="left", padx=10, pady=10)
             
-        )
-        self.search.pack(side="right", padx=10, pady=10)
-        self.search.bind(
-            "<Return>",
-            self.execute_effect
-        )
-        
-        undo_button = tk.Button(
-            toolbar,
-            text="Undo",
-            command=self.undo,
-            bg=self.bg1,
-            fg="white",
-            relief="flat",
-            padx=16,
-            pady=8
-        )
-        undo_button.pack(side="right", padx=10, pady=10)
-        
-        ##main image display
-        self.preview_frame = tk.Frame(
-            root,
-            bg=self.bg0
-        )
-        self.preview_frame.pack(
-            fill="both",
-            expand=True,
-            padx=20,
-            pady=20
-        )
-        
-        self.canvas = tk.Label(
-            self.preview_frame, 
-            text="Open image to get started",
-            bg=self.bg0,
-            fg="#888888"
+            save_button = tk.Button(
+                toolbar,
+                text="Save Image",
+                command=self.save_image,
+                bg=self.bg1,
+                fg="white",
+                relief="flat",
+                padx=16,
+                pady=8
             )
-        self.canvas.place(
-            relx=0.5,
-            rely=0.5,
-            anchor="center"
+            save_button.pack(side="left", padx=10, pady=10)
+            
+            header = tk.Label(
+                toolbar,
+                text="PYMOSH",
+                font=("Courier", 24, "bold"),
+                fg=self.accent1,
+                bg=self.bg2
+                )
+            header.place(relx=0.5, rely=0.5, anchor="center")
+            
+            #TODO: search autocomplete / show what each parameter does
+            self.search = tk.Entry(
+                toolbar,
+                font=("Courier", 12, "bold"),
+                fg=self.accent1,
+                bg=self.bg1,
+                relief="ridge",
+                insertbackground=self.accent1
+                
             )
-        
-        ##bottom status bar
-        self.status_bar = tk.Frame(
-            root,
-            bg=self.bg2,
-            height=42
-        )
-        self.status_bar.pack(fill="x", side="bottom")
-        self.status_bar.pack_propagate(False)
-        
-        self.status = tk.Label(
-            self.status_bar,
-            text="PYMOSH // READY",
-            font=("Courier", 11, "bold"),
-            bg=self.bg2,
-            fg=self.neon,
-            anchor="w",
-            padx=10,
+            self.search.pack(side="right", padx=10, pady=10)
+            self.search.bind(
+                "<Return>",
+                self.execute_effect
             )
-        self.status.pack(side="left", fill="y")
-        
-        self.settings_button = tk.Button(
-            self.status_bar,
-            text="Settings",
-            command=self.show_settings,
-            bg=self.bg1,
-            fg="white",
-            relief="flat",
-            padx=16,
-            pady=8
-        )
-        self.settings_button.pack(side="right", padx=10, pady=10)
-        
-        self.effects_button = tk.Button(
-            self.status_bar,
-            text="Effects",
-            command=self.show_effects,
-            bg=self.bg1,
-            fg="white",
-            relief="flat",
-            padx=16,
-            pady=8
-        )
-        self.effects_button.pack(side="right", padx=10, pady=10)
+            
+            undo_button = tk.Button(
+                toolbar,
+                text="Undo",
+                command=self.undo,
+                bg=self.bg1,
+                fg="white",
+                relief="flat",
+                padx=16,
+                pady=8
+            )
+            undo_button.pack(side="right", padx=10, pady=10)
+            
+            ##main image display
+            self.preview_frame = tk.Frame(
+                root,
+                bg=self.bg0
+            )
+            self.preview_frame.pack(
+                fill="both",
+                expand=True,
+                padx=20,
+                pady=20
+            )
+            
+            self.canvas = tk.Label(
+                self.preview_frame, 
+                text="Open image to get started",
+                bg=self.bg0,
+                fg="#888888"
+                )
+            self.canvas.place(
+                relx=0.5,
+                rely=0.5,
+                anchor="center"
+                )
+            
+            ##bottom status bar
+            self.status_bar = tk.Frame(
+                root,
+                bg=self.bg2,
+                height=42
+            )
+            self.status_bar.pack(fill="x", side="bottom")
+            self.status_bar.pack_propagate(False)
+            
+            self.status = tk.Label(
+                self.status_bar,
+                text="PYMOSH // READY",
+                font=("Courier", 11, "bold"),
+                bg=self.bg2,
+                fg=self.accent1,
+                anchor="w",
+                padx=10,
+                )
+            self.status.pack(side="left", fill="y")
+            
+            self.settings_button = tk.Button(
+                self.status_bar,
+                text="Settings",
+                command=self.show_settings,
+                bg=self.bg1,
+                fg="white",
+                relief="flat",
+                padx=16,
+                pady=8
+            )
+            self.settings_button.pack(side="right", padx=10, pady=10)
+            
+            self.effects_button = tk.Button(
+                self.status_bar,
+                text="Effects",
+                command=self.show_effects,
+                bg=self.bg1,
+                fg="white",
+                relief="flat",
+                padx=16,
+                pady=8
+            )
+            self.effects_button.pack(side="right", padx=10, pady=10)
 
+            
+            ##ZOOMING
+            self.root.bind_all("<Control-MouseWheel>", self.zoom_image)
         
-        ##ZOOMING
-        self.root.bind_all("<Control-MouseWheel>", self.zoom_image)
+        
+        build_gui(self)
         
     def open_image(self):
         path = filedialog.askopenfilename(
@@ -422,7 +434,7 @@ class PyMosh:
             text="EFFECTS",
             font=("Courier", 18, "bold"),
             bg=self.bg0,
-            fg=self.neon
+            fg=self.accent1
         ).pack(anchor="w", pady=(0, 10))
         
         ##scrollable shi
@@ -437,8 +449,8 @@ class PyMosh:
             command=canvas.yview,
             width=20,
             troughcolor="#111111",
-            bg=self.neon,
-            activebackground="#ccff66",
+            bg=self.accent1,
+            activebackground=self.accent2,
             relief="flat",
             bd=0
         )
@@ -498,7 +510,7 @@ class PyMosh:
                 text=f"[{code}] {names[0].upper()}",
                 font=("Courier", 14, "bold"),
                 bg=self.bg2,
-                fg=self.neon
+                fg=self.accent1
             ).pack(anchor="w")
             
             tk.Label(
@@ -597,7 +609,7 @@ class PyMosh:
             text="SETTINGS",
             font=("Courier", 18, "bold"),
             bg=self.bg0,
-            fg=self.neon
+            fg=self.accent1
         ).pack(anchor="w", pady=(0, 10))
         
         tk.Button(
@@ -624,8 +636,8 @@ class PyMosh:
             command=canvas.yview,
             width=20,
             troughcolor="#111111",
-            bg=self.neon,
-            activebackground="#ccff66",
+            bg=self.accent1,
+            activebackground=self.accent2,
             relief="flat",
             bd=0
         )
@@ -665,13 +677,53 @@ class PyMosh:
         ##preview sampling (nearest, bicubic etc), themes (colors), zooming amounts, 
         ##undo budget / max undos, 
         
+        ##theme settings
+        tk.Label(
+            content,
+            text="THEMES",
+            font=("Courier", 14, "bold"),
+            bg=self.bg0,
+            fg=self.accent1
+        ).pack(anchor="w", pady=(15, 5))
+        
+        tk.Label(
+            content,
+            text="ACCENT COLOR",
+            font=("Courier", 10),
+            bg=self.bg0,
+            fg="white"
+        ).pack(anchor="w")
+        
+        accent_var = tk.StringVar(
+            value=next(
+                name for name, accent in self.themes.items()
+                if accent == self.themes[self.theme_accent]
+            )
+        )
+        
+        
+        ##TODO: FIX THIS SHIT DEADAHH
+        def change_accent(selected):
+            self.theme_accent = selected
+            self.settings["theme_accent"] = selected
+            
+            self.status.configure(text=f"PYMOSH // APPLIED {self.theme_accent.upper()} ACCENT")
+            self.build_gui()
+            
+        sampling_menu = tk.OptionMenu(
+            content,
+            accent_var,
+            *self.preview_methods.keys(),
+            command=change_accent
+        )
+        
         ##preview settings
         tk.Label(
             content,
             text="PREVIEW",
             font=("Courier", 14, "bold"),
             bg=self.bg0,
-            fg=self.neon
+            fg=self.accent1
         ).pack(anchor="w", pady=(15, 5))
         
         tk.Label(
@@ -704,8 +756,8 @@ class PyMosh:
         )
         sampling_menu.configure(
             bg=self.bg2,
-            fg=self.neon,
-            activebackground="#ccff66",
+            fg=self.accent1,
+            activebackground=self.accent2,
             activeforeground="black",
             highlightthickness=1,
             relief="flat",
@@ -713,8 +765,8 @@ class PyMosh:
         )
         sampling_menu["menu"].configure(
             bg=self.bg2,
-            fg=self.neon,
-            activebackground="#ccff66",
+            fg=self.accent1,
+            activebackground=self.accent2,
             activeforeground="black",
             font=("courier", 10),
             bd=0
@@ -749,7 +801,7 @@ class PyMosh:
         text="ZOOM",
         font=("Courier", 14, "bold"),
         bg=self.bg0,
-        fg=self.neon
+        fg=self.accent1
         ).pack(anchor="w", pady=(15, 5))
 
         #min zoom
@@ -771,12 +823,12 @@ class PyMosh:
         )
         min_zoom_slider.configure(
             bg=self.bg2,
-            fg=self.neon,
+            fg=self.accent1,
             troughcolor="#222222",
-            activebackground="#ccff66",
+            activebackground=self.accent2,
             highlightthickness=1,
             highlightbackground="white",
-            highlightcolor=self.neon,
+            highlightcolor=self.accent1,
             relief="flat",
             font=("Courier", 10, "bold"),
             width=10,
@@ -805,12 +857,12 @@ class PyMosh:
         )
         max_zoom_slider.configure(
             bg=self.bg2,
-            fg=self.neon,
+            fg=self.accent1,
             troughcolor="#222222",
-            activebackground="#ccff66",
+            activebackground=self.accent2,
             highlightthickness=1,
             highlightbackground="white",
-            highlightcolor=self.neon,
+            highlightcolor=self.accent1,
             relief="flat",
             font=("Courier", 10, "bold"),
             width=10,
@@ -839,12 +891,12 @@ class PyMosh:
         )
         zoom_step_slider.configure(
             bg=self.bg2,
-            fg=self.neon,
+            fg=self.accent1,
             troughcolor="#222222",
-            activebackground="#ccff66",
+            activebackground=self.accent2,
             highlightthickness=1,
             highlightbackground="white",
-            highlightcolor=self.neon,
+            highlightcolor=self.accent1,
             relief="flat",
             font=("Courier", 10, "bold"),
             width=10,
