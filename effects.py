@@ -1,5 +1,6 @@
 import math
 import random
+from pathlib import Path
 
 import numpy as np
 from PIL import (
@@ -172,7 +173,7 @@ def ascii(img, font_size=15):
     
     chars = np.array(list('@#$%&?+.*-/_^:`~'))
     
-    font = ImageFont.truetype("misc/ascii.ttf", font_size)
+    font = ImageFont.truetype(str(Path(__file__).resolve().parent / "misc" / "ascii.ttf"), font_size)
     
     width, height = img.size
     

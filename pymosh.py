@@ -46,10 +46,13 @@ class PyMosh:
         self.effects_open = False
         
         
-        ##settings
+        ##settings and path stuff
         pymosh_dir = Path.home() / 'AppData/Roaming/PYMOSH'
         
         self.settings_file = pymosh_dir / 'settings.json'
+        
+        icon_path = Path(__file__).resolve().parent / 'misc' / 'pymosh.ico'
+        self.root.iconbitmap(str(icon_path))
         
         self.default_settings = {
                     "preview_sampling": "NEAREST NEIGHBOR",

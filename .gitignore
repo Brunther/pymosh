@@ -1,4 +1,5 @@
 **/__pycache__/
-misc/default_settings.json
-misc/settings.json
 .vscode
+build/
+dist/
+misc/version_info.txt
