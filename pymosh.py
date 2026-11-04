@@ -5,7 +5,7 @@ import traceback
 from pathlib import Path
 from tkinter import filedialog
 
-from PIL import Image, ImageOps, ImageTk, UnidentifiedImageError
+from PIL import Image, ImageTk, UnidentifiedImageError
 
 from registry import REGISTRY, run_effect
 
@@ -24,14 +24,12 @@ class PyMosh:
         self.undo_stack = []
         
         ##colors
-        self.accent1 = "#aaff00"
-        self.accent2 = "#ccff66"
         self.bg0 = "#181818"
         self.bg1 = "#333333"
         self.bg2 = "#222222"
         
         ##undo budget
-        self.undo_budget = 500 << 20
+        self.undo_budget = 500
         self.max_undos = 50
         
         ##zooming
@@ -41,10 +39,6 @@ class PyMosh:
         self.min_zoom = 0.2
         self.max_zoom = 5.0
         self.zoom_step = 0.1
-        
-        ##top toolbar
-        toolbar = tk.Frame(root, bg=self.bg2)
-        toolbar.pack(fill="x")
         
         ##misc
         self.last_status_text = None
@@ -62,7 +56,9 @@ class PyMosh:
                     "min_zoom": 0.2,
                     "max_zoom": 5.0,
                     "zoom_step": 0.1,
-                    "theme_accent": "Neon Green"
+                    "theme_accent": "Neon Green",
+                    "max_undos": 50,
+                    "undo_budget": 500
                 }
         
         self.load_settings_file()
@@ -75,146 +71,170 @@ class PyMosh:
         
         self.themes = {
             "Neon Green": ("#aaff00", "#ccff66"),
-            "Neon Purple": ("#ee00ee", "#ff00ff"),
-            "Forest Green": (),
-            "Ocean Blue": (),
+            "Neon Purple": ("#ee11ee", "#ff00ff"),
+            "Forest Green": ("#4f7942", "#228b22"),
+            "Ocean Blue": ("#009dc4", "#00a7d1"),
         }
-        def build_gui(self):
-            open_button = tk.Button(
-                toolbar,
-                text="Open Image",
-                command=self.open_image,
-                bg=self.bg1,
-                fg="white",
-                relief="flat",
-                padx=16,
-                pady=8
+        
+        ##theme accent
+        self.accent1, self.accent2 = self.themes[self.theme_accent]
+        
+        self.build_gui()
+        
+        
+    def build_gui(self):
+        self.toolbar = tk.Frame(root, bg=self.bg2)
+        self.toolbar.pack(fill="x")
+        
+        
+        open_button = tk.Button(
+            self.toolbar,
+            text="Open Image",
+            command=self.open_image,
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        )
+        open_button.pack(side="left", padx=10, pady=10)
+        
+        save_button = tk.Button(
+            self.toolbar,
+            text="Save Image",
+            command=self.save_image,
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        )
+        save_button.pack(side="left", padx=10, pady=10)
+        
+        header = tk.Label(
+            self.toolbar,
+            text="PYMOSH",
+            font=("Courier", 24, "bold"),
+            fg=self.accent1,
+            bg=self.bg2
             )
-            open_button.pack(side="left", padx=10, pady=10)
+        header.place(relx=0.5, rely=0.5, anchor="center")
+        
+        #TODO: search autocomplete / show what each parameter does
+        self.search = tk.Entry(
+            self.toolbar,
+            font=("Courier", 12, "bold"),
+            fg=self.accent1,
+            bg=self.bg1,
+            relief="ridge",
+            insertbackground=self.accent1
             
-            save_button = tk.Button(
-                toolbar,
-                text="Save Image",
-                command=self.save_image,
-                bg=self.bg1,
-                fg="white",
-                relief="flat",
-                padx=16,
-                pady=8
+        )
+        self.search.pack(side="right", padx=10, pady=10)
+        self.search.bind(
+            "<Return>",
+            self.execute_effect
+        )
+        
+        undo_button = tk.Button(
+            self.toolbar,
+            text="Undo",
+            command=self.undo,
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        )
+        undo_button.pack(side="right", padx=10, pady=10)
+        
+        ##main image display
+        self.preview_frame = tk.Frame(
+            root,
+            bg=self.bg0
+        )
+        self.preview_frame.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+            pady=20
+        )
+        
+        self.canvas = tk.Canvas(
+            self.preview_frame, 
+            bg=self.bg0,
+            highlightthickness=0,
+            bd=0
             )
-            save_button.pack(side="left", padx=10, pady=10)
-            
-            header = tk.Label(
-                toolbar,
-                text="PYMOSH",
-                font=("Courier", 24, "bold"),
-                fg=self.accent1,
-                bg=self.bg2
-                )
-            header.place(relx=0.5, rely=0.5, anchor="center")
-            
-            #TODO: search autocomplete / show what each parameter does
-            self.search = tk.Entry(
-                toolbar,
-                font=("Courier", 12, "bold"),
-                fg=self.accent1,
-                bg=self.bg1,
-                relief="ridge",
-                insertbackground=self.accent1
-                
+        self.canvas.pack(fill="both", expand=True)
+        
+        self.canvas_image = self.canvas.create_image(0, 0, anchor="center")
+        
+        self.canvas.bind(
+            "<Configure>",
+            lambda event: self.canvas.coords(
+                self.canvas_image,
+                event.width / 2,
+                event.height / 2
             )
-            self.search.pack(side="right", padx=10, pady=10)
-            self.search.bind(
-                "<Return>",
-                self.execute_effect
+        )
+        
+        
+        ##bottom status bar
+        self.status_bar = tk.Frame(
+            root,
+            bg=self.bg2,
+            height=42
+        )
+        self.status_bar.pack(fill="x", side="bottom")
+        self.status_bar.pack_propagate(False)
+        
+        self.status = tk.Label(
+            self.status_bar,
+            text="PYMOSH // READY",
+            font=("Courier", 11, "bold"),
+            bg=self.bg2,
+            fg=self.accent1,
+            anchor="w",
+            padx=10,
             )
-            
-            undo_button = tk.Button(
-                toolbar,
-                text="Undo",
-                command=self.undo,
-                bg=self.bg1,
-                fg="white",
-                relief="flat",
-                padx=16,
-                pady=8
-            )
-            undo_button.pack(side="right", padx=10, pady=10)
-            
-            ##main image display
-            self.preview_frame = tk.Frame(
-                root,
-                bg=self.bg0
-            )
-            self.preview_frame.pack(
-                fill="both",
-                expand=True,
-                padx=20,
-                pady=20
-            )
-            
-            self.canvas = tk.Label(
-                self.preview_frame, 
-                text="Open image to get started",
-                bg=self.bg0,
-                fg="#888888"
-                )
-            self.canvas.place(
-                relx=0.5,
-                rely=0.5,
-                anchor="center"
-                )
-            
-            ##bottom status bar
-            self.status_bar = tk.Frame(
-                root,
-                bg=self.bg2,
-                height=42
-            )
-            self.status_bar.pack(fill="x", side="bottom")
-            self.status_bar.pack_propagate(False)
-            
-            self.status = tk.Label(
-                self.status_bar,
-                text="PYMOSH // READY",
-                font=("Courier", 11, "bold"),
-                bg=self.bg2,
-                fg=self.accent1,
-                anchor="w",
-                padx=10,
-                )
-            self.status.pack(side="left", fill="y")
-            
-            self.settings_button = tk.Button(
-                self.status_bar,
-                text="Settings",
-                command=self.show_settings,
-                bg=self.bg1,
-                fg="white",
-                relief="flat",
-                padx=16,
-                pady=8
-            )
-            self.settings_button.pack(side="right", padx=10, pady=10)
-            
-            self.effects_button = tk.Button(
-                self.status_bar,
-                text="Effects",
-                command=self.show_effects,
-                bg=self.bg1,
-                fg="white",
-                relief="flat",
-                padx=16,
-                pady=8
-            )
-            self.effects_button.pack(side="right", padx=10, pady=10)
+        self.status.pack(side="left", fill="y")
+        
+        self.settings_button = tk.Button(
+            self.status_bar,
+            text="Settings",
+            command=self.show_settings,
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        )
+        self.settings_button.pack(side="right", padx=10, pady=10)
+        
+        self.effects_button = tk.Button(
+            self.status_bar,
+            text="Effects",
+            command=self.show_effects,
+            bg=self.bg1,
+            fg="white",
+            relief="flat",
+            padx=16,
+            pady=8
+        )
+        self.effects_button.pack(side="right", padx=10, pady=10)
 
-            
-            ##ZOOMING
-            self.root.bind_all("<Control-MouseWheel>", self.zoom_image)
         
+        ##ZOOMING
+        self.root.bind_all("<Control-MouseWheel>", self.zoom_image)
+    
         
-        build_gui(self)
+    def rebuild_gui(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()   
+        
+        self.build_gui()
+        self.update_preview()
         
     def open_image(self):
         path = filedialog.askopenfilename(
@@ -248,32 +268,72 @@ class PyMosh:
             self.status.configure(text="PYMOSH // Error: Cannot identify image file")
         except Exception as error:  # noqa: BLE001
             self.status.configure(text=f"PYMOSH // Error: {error}")
+    
+    
+        
+    
             
     def update_preview(self):
         if self.image is None:
             return
-        max_width = int(820 * self.zoom)
-        max_height = int(520 * self.zoom)
         
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        if canvas_width <= 1 or canvas_height <= 1:
+            return
+        
+        img_width, img_height = self.image.size
+        
+        base_scale = min(820 / img_width, 520 / img_height)
+        scale = base_scale * self.zoom
+        
+        scaled_width = max(1, round(img_width * scale))
+        scaled_height = max(1, round(img_height * scale))
+        
+        visible_width = min(canvas_width, scaled_width)
+        visibe_height = min(canvas_height, scaled_height)
+        
+        crop_width = visible_width / scale
+        crop_height = visibe_height / scale
+        
+        left = (img_width - crop_width) / 2
+        top = (img_height - crop_height) / 2
+        
+        box = (
+            max(0, int(left)),
+            max(0, int(top)),
+            min(img_width, int(left + crop_width)),
+            min(img_height, int(top + crop_height))
+        )
+        
+        cropped = self.image.crop(box)
+                
         if self.zooming:
             method=Image.Resampling.BILINEAR
         else:
             method=self.preview_methods[self.preview_sampling]
-        
-        preview = ImageOps.contain(
-            self.image,
-            (max_width, max_height),
-            method=method
-        )
+            
+        preview = cropped.resize(
+            (max(1, round(visible_width)), max(1, round(visibe_height))),
+            resample=method
+        )    
         
         self.display_image = ImageTk.PhotoImage(preview)
         
-        #put image inside window
-        self.canvas.configure(
-            image=self.display_image,
-            text=""
-        )        
-    
+        self.canvas.itemconfigure(
+            self.canvas_image,
+            image=self.display_image
+        )
+        
+        self.canvas.coords(
+            self.canvas_image,
+            canvas_width / 2,
+            canvas_height / 2
+        )
+        
+        
+            
     def save_image(self):
         if self.image is None:
             return
@@ -354,7 +414,7 @@ class PyMosh:
         )
         
         while self.undo_stack and (
-            total > self.undo_budget or len(self.undo_stack) > self.max_undos
+            (total > self.undo_budget << 20) or len(self.undo_stack) > self.max_undos
         ):
             oldest = self.undo_stack.pop(0)[0]
             total -= (oldest.width * oldest.height * len(oldest.getbands()))
@@ -395,6 +455,10 @@ class PyMosh:
             self.change_zoom(-self.zoom_step)
         return "break"
     def change_zoom(self, amount):
+        
+        if self.min_zoom > self.zoom + amount or self.max_zoom < self.zoom + amount:
+            return
+        
         self.zoom = max(self.min_zoom, min(self.max_zoom, self.zoom + amount))
         self.zooming = True
         
@@ -403,7 +467,7 @@ class PyMosh:
         
         self.update_preview()
         
-        self.zoom_after_id = self.root.after(150, self.finish_zoom)
+        self.zoom_after_id = self.root.after(120, self.finish_zoom)
     
     def finish_zoom(self):
         self.zoom_after_id = None
@@ -604,25 +668,27 @@ class PyMosh:
         )
         
         ##Header
-        tk.Label(
+        settings_title = tk.Label(
             self.settings_frame,
             text="SETTINGS",
             font=("Courier", 18, "bold"),
             bg=self.bg0,
             fg=self.accent1
-        ).pack(anchor="w", pady=(0, 10))
+        )
+        settings_title.place(relx=0.5, y=15, anchor="n")
         
-        tk.Button(
+        save_settings_button = tk.Button(
             self.settings_frame,
             text="SAVE SETTINGS",
             font=("Courier", 14),
             command=self.save_settings,
-            bg=self.bg1,
+            bg=self.bg0,
             fg="white",
             relief="flat",
             padx=16,
             pady=8
-        ).pack(anchor="w")
+        )
+        save_settings_button.place(relx=0.5, y=55, anchor="n")
         
         ##scrollable shi
         canvas = tk.Canvas(
@@ -671,7 +737,7 @@ class PyMosh:
             widget.bind("<MouseWheel>", on_mousewheel) 
             for child in widget.winfo_children():
                 bind_mousewheel(child)
-                
+
                 
         ##TODO: add settings and whatnot
         ##preview sampling (nearest, bicubic etc), themes (colors), zooming amounts, 
@@ -680,7 +746,7 @@ class PyMosh:
         ##theme settings
         tk.Label(
             content,
-            text="THEMES",
+            text="THEME",
             font=("Courier", 14, "bold"),
             bg=self.bg0,
             fg=self.accent1
@@ -696,8 +762,8 @@ class PyMosh:
         
         accent_var = tk.StringVar(
             value=next(
-                name for name, accent in self.themes.items()
-                if accent == self.themes[self.theme_accent]
+                name for name, accents in self.themes.items()
+                if accents == self.themes[self.theme_accent]
             )
         )
         
@@ -705,17 +771,40 @@ class PyMosh:
         ##TODO: FIX THIS SHIT DEADAHH
         def change_accent(selected):
             self.theme_accent = selected
+            self.accent1, self.accent2 = self.themes[selected]
             self.settings["theme_accent"] = selected
             
-            self.status.configure(text=f"PYMOSH // APPLIED {self.theme_accent.upper()} ACCENT")
-            self.build_gui()
+            self.rebuild_gui()
             
-        sampling_menu = tk.OptionMenu(
+            self.settings_open = False
+            self.show_settings()
+            self.status.configure(text=f"PYMOSH // APPLIED {self.theme_accent.upper()} ACCENT")
+            
+        accent_menu = tk.OptionMenu(
             content,
             accent_var,
-            *self.preview_methods.keys(),
+            *self.themes.keys(),
             command=change_accent
         )
+        
+        accent_menu.configure(
+            bg=self.bg2,
+            fg=self.accent1,
+            activebackground=self.accent2,
+            activeforeground="black",
+            highlightthickness=1,
+            relief="flat",
+            font=("Courier", 10)
+        )
+        accent_menu["menu"].configure(
+        bg=self.bg2,
+        fg=self.accent1,
+        activebackground=self.accent2,
+        activeforeground="black",
+        font=("courier", 10),
+        bd=0
+        )
+        accent_menu.pack(anchor="w", pady=5)
         
         ##preview settings
         tk.Label(
@@ -906,8 +995,95 @@ class PyMosh:
         zoom_step_slider.set(self.settings.get("zoom_step", self.zoom_step))
         zoom_step_slider.pack(anchor="w", pady=5)
         
+        def change_undo_count(value):
+            self.max_undos = int(value)
+            self.settings["max_undos"] = int(value)
+            
+        def change_undo_budget(value):
+            self.undo_budget = int(value)
+            self.settings["undo_budget"] = int(value)
         
+        ##undo budget
+        tk.Label(
+        content,
+        text="UNDOS",
+        font=("Courier", 14, "bold"),
+        bg=self.bg0,
+        fg=self.accent1
+        ).pack(anchor="w", pady=(15, 5))
+
+        #min zoom
+        tk.Label(
+        content,
+        text="MAX UNDO COUNT",
+        font=("Courier", 10),
+        bg=self.bg0,
+        fg="white"
+        ).pack(anchor="w")
         
+        undo_count_slider = tk.Scale(
+        content,
+        from_=20,
+        to=200,
+        orient="horizontal",
+        resolution=1,
+        command=change_undo_count
+        )
+        undo_count_slider.configure(
+            bg=self.bg2,
+            fg=self.accent1,
+            troughcolor="#222222",
+            activebackground=self.accent2,
+            highlightthickness=1,
+            highlightbackground="white",
+            highlightcolor=self.accent1,
+            relief="flat",
+            font=("Courier", 10, "bold"),
+            width=10,
+            sliderlength=16,
+            length=180
+        )
+        undo_count_slider.set(self.settings.get("max_undos", self.max_undos))
+        undo_count_slider.pack(anchor="w", pady=5)
+        
+        #max zoom
+        tk.Label(
+        content,
+        text="UNDO BUDGET (Mb RAM)",
+        font=("Courier", 10),
+        bg=self.bg0,
+        fg="white"
+        ).pack(anchor="w")
+        
+        undo_budget_slider = tk.Scale(
+        content,
+        from_=10,
+        to=2500,
+        orient="horizontal",
+        resolution=10,
+        command=change_undo_budget
+        )
+        undo_budget_slider.configure(
+            bg=self.bg2,
+            fg=self.accent1,
+            troughcolor="#222222",
+            activebackground=self.accent2,
+            highlightthickness=1,
+            highlightbackground="white",
+            highlightcolor=self.accent1,
+            relief="flat",
+            font=("Courier", 10, "bold"),
+            width=10,
+            sliderlength=16,
+            length=180
+        )
+        undo_budget_slider.set(self.settings.get("undo_budget", self.undo_budget))
+        undo_budget_slider.pack(anchor="w", pady=5)
+        
+        ##for scrolling
+        bind_mousewheel(content)
+        settings_title.lift()
+        save_settings_button.lift()
         
         self.settings_button.configure(text="Back to editing")
         self.status.configure(text="PYMOSH // SETTINGS")
@@ -936,20 +1112,25 @@ class PyMosh:
                     settings = json.load(file)
                     self.settings.update(settings)
             except (json.JSONDecodeError, OSError):
-                self.save_settings()
-        else:
-            self.save_settings()
+                pass
         
+        self.save_settings()
+            
+        self.theme_accent = self.settings["theme_accent"]
         self.preview_sampling = self.settings["preview_sampling"]
         self.min_zoom = self.settings["min_zoom"]
         self.max_zoom = self.settings["max_zoom"]
         self.zoom_step = self.settings["zoom_step"]
+        self.max_undos = self.settings["max_undos"]
+        self.undo_budget = self.settings["undo_budget"]
     
     def save_settings(self):
         self.settings_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.settings_file, "w") as file:
             json.dump(self.settings, file, indent=4)
-        self.status.configure(text="PYMOSH // SETTINGS SAVED")
+        
+        if hasattr(self, "status"):
+            self.status.configure(text="PYMOSH // SETTINGS SAVED")
         
         
 root = tk.Tk()

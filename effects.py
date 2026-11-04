@@ -1,6 +1,7 @@
 import math
 import random
 
+import numpy as np
 from PIL import (
     Image,
     ImageChops,
@@ -169,7 +170,7 @@ def ascii(img, font_size=15):
     
     gs = og.convert("L")
     
-    chars = '@#$%&?+.*-/_^:`~'
+    chars = np.array(list('@#$%&?+.*-/_^:`~'))
     
     font = ImageFont.truetype("misc/ascii.ttf", font_size)
     
@@ -178,26 +179,47 @@ def ascii(img, font_size=15):
     result = Image.new("RGB", (width, height), (15, 15, 15))
     draw = ImageDraw.Draw(result)
     
-    bbox = draw.textbbox((0, 0), "A", font=font)
-    char_width = draw.textlength("A", font=font)
-    char_height = bbox[3] - bbox[1]
+    
+    ascent, descent = font.getmetrics()
+    
+    char_width = max(1, int(draw.textlength("A", font=font)))
+    char_height = ascent + descent
+    
+    glyphs = {}
+    
+    for char in chars:
+        mask = Image.new("L", (char_width, char_height), 0)
+        mask_draw = ImageDraw.Draw(mask)
+    
+        mask_draw.text(
+            (0, 0),
+            char,
+            font=font,
+            fill=255
+        )
+        glyphs[char] = mask
     
     
-    for y in range(0, height, int(char_height)):
-        for x in range(0, width, max(1, int(char_width))):
+    
+    gs_array = np.asarray(gs)
+    color_array = np.asarray(og)
+    
+    brightness = gs_array[::char_height, ::char_width]
+    colors = color_array[::char_height, ::char_width]
+    
+    indices = brightness.astype(np.uint16) * (len(chars) - 1) // 255
+    char_array = chars[indices]
+    
+    for row, y in enumerate(range(0, height, int(char_height))):
+        for col, x in enumerate(range(0, width, int(char_width))):
             
-            brightness = gs.getpixel((x, y))
-            color = og.getpixel((x, y))
+            char = char_array[row, col]
+            color = tuple(int(v) for v in colors[row, col])
             
-            index = brightness * (len(chars) - 1) // 255
-
-            char = chars[index]
-            
-            draw.text(
+            result.paste(
+                color, 
                 (x, y),
-                char,
-                font=font,
-                fill=color
+                glyphs[char]
             )
     return result
 
@@ -250,40 +272,40 @@ def waves(img, amplitude=15, frequency=5):
     return result
 
 def halftones(img, dot_size=8, max_radius=5):
-    gray = img.convert("L")
+    dot_size = max(1, dot_size)
+    
+    max_radius = max(0, max_radius)
+    
     width, height = img.size
     
-    result = Image.new("RGB", img.size, (255, 255, 255))
+    
+    cols = (width + dot_size - 1) // dot_size
+    rows = (height + dot_size - 1) // dot_size
+    
+    small = img.resize((cols, rows), Image.Resampling.BOX)
+    
+    colors = np.asarray(small)
+    gray = np.asarray(small.convert("L"), dtype=np.float32)
+    
+    radii = (1.0 - gray / 255) * max_radius
+    
+    result = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(result)
     
-    for y in range(0, height, dot_size):
-        for x in range(0, width, dot_size):
-            
-            brightness = gray.getpixel((
-                min(x + dot_size // 2, width - 1),
-                min(y + dot_size // 2, height - 1)
-            ))
-
-            radius = (1 - brightness / 255) * max_radius
+    for row in range(rows):
+        for col in range(cols):
+            radius = float(radii[row, col])
             
             if radius < 0.5:
                 continue
+            cx = col * dot_size + dot_size / 2
+            cy = row * dot_size + dot_size / 2
             
-            color = img.getpixel((
-                min(x + dot_size // 2, width - 1),
-                min(y + dot_size // 2, height - 1)
-            ))
-            
-            center_x = x + dot_size // 2
-            center_y = y + dot_size // 2
+            color = tuple(int(v) for v in colors[row, col])
             
             draw.ellipse(
-                (
-                center_x - radius,
-                center_y - radius,
-                center_x + radius,
-                center_y + radius
-                ),
+                (cx - radius, cy - radius,
+                 cx + radius, cy + radius),
                 fill=color
             )
     return result
