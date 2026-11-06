@@ -95,11 +95,10 @@ def slice_glitch(img, num_slices=10, max_shift=30):
         
         shift = random.randint(-max_shift, max_shift)
         
-        shifted = ImageChops.offset(image, shift, 0)
+        band = image.crop((0, y_start, width, y_end))
+        band = ImageChops.offset(band, shift, 0)
         
-        slice_crop = shifted.crop((0, y_start, width, y_end))
-        
-        image.paste(slice_crop, (0, y_start))
+        image.paste(band, (0, y_start))
     
     return image
 

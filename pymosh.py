@@ -32,13 +32,18 @@ class PyMosh:
         self.undo_budget = 500
         self.max_undos = 50
         
-        ##zooming
+        ##zooming and panning
         self.zooming = False
         self.zoom_after_id = None
         self.zoom = 1.0
         self.min_zoom = 0.2
         self.max_zoom = 5.0
         self.zoom_step = 0.1
+        self.pan_x = 0
+        self.pan_y = 0
+        self.pan_start = None
+        self.zoom_to_mouse = True
+        
         
         ##misc
         self.last_status_text = None
@@ -61,7 +66,8 @@ class PyMosh:
                     "zoom_step": 0.1,
                     "theme_accent": "Neon Green",
                     "max_undos": 50,
-                    "undo_budget": 500
+                    "undo_budget": 500,
+                    "zoom_to_mouse": True
                 }
         
         self.load_settings_file()
@@ -171,17 +177,22 @@ class PyMosh:
             )
         self.canvas.pack(fill="both", expand=True)
         
-        self.canvas_image = self.canvas.create_image(0, 0, anchor="center")
+        self.canvas_image = self.canvas.create_image(0, 0, anchor="nw")
         
-        self.canvas.bind(
-            "<Configure>",
-            lambda event: self.canvas.coords(
-                self.canvas_image,
-                event.width / 2,
-                event.height / 2
-            )
-        )
+        ##bindings
+        self.canvas.bind("<Configure>", self.on_canvas_resize)
         
+        self.canvas.bind("<ButtonPress-2>", self.start_pan)
+        self.canvas.bind("<B2-Motion>", self.drag_pan)
+        self.canvas.bind("<ButtonRelease-2>", self.end_pan)   
+        
+        self.canvas.bind("<Control-MouseWheel>", 
+                        lambda event: self.change_zoom(
+                            self.zoom_step if event.delta > 0 else - self.zoom_step,
+                            event.x,
+                            event.y
+                            )
+                        )     
         
         ##bottom status bar
         self.status_bar = tk.Frame(
@@ -229,7 +240,13 @@ class PyMosh:
 
         
         ##ZOOMING
-        self.root.bind_all("<Control-MouseWheel>", self.zoom_image)
+        self.canvas.bind("<Control-MouseWheel>", 
+                           lambda event: self.change_zoom(
+                               self.zoom_step if event.delta > 0 else - self.zoom_step,
+                               event.x,
+                               event.y
+                           )
+                           )
     
         
     def rebuild_gui(self):
@@ -262,6 +279,9 @@ class PyMosh:
             
             self.undo_stack.clear()
             
+            self.pan_x = 0
+            self.pan_y = 0
+            
             self.update_preview()
             
             self.status.configure(
@@ -273,7 +293,13 @@ class PyMosh:
             self.status.configure(text=f"PYMOSH // Error: {error}")
     
     
+    
+    
+    def on_canvas_resize(self, event):
+        if self.image is None:
+            return
         
+        self.update_preview()
     
             
     def update_preview(self):
@@ -291,26 +317,27 @@ class PyMosh:
         base_scale = min(820 / img_width, 520 / img_height)
         scale = base_scale * self.zoom
         
-        scaled_width = max(1, round(img_width * scale))
-        scaled_height = max(1, round(img_height * scale))
         
-        visible_width = min(canvas_width, scaled_width)
-        visibe_height = min(canvas_height, scaled_height)
+        left = (img_width - canvas_width / scale) / 2 - self.pan_x / scale
+        top = (img_height - canvas_height / scale) / 2 - self.pan_y / scale
         
-        crop_width = visible_width / scale
-        crop_height = visibe_height / scale
+        right = left + canvas_width / scale
+        bottom = top + canvas_height / scale
         
-        left = (img_width - crop_width) / 2
-        top = (img_height - crop_height) / 2
+        crop_left = max(0, int(left))
+        crop_top = max(0, int(top))
+        crop_right = min(img_width, int(right) + 1)
+        crop_bottom = min(img_height, int(bottom) + 1)
         
-        box = (
-            max(0, int(left)),
-            max(0, int(top)),
-            min(img_width, int(left + crop_width)),
-            min(img_height, int(top + crop_height))
-        )
+        if crop_right <= crop_left or crop_bottom <= crop_top:
+            return
         
-        cropped = self.image.crop(box)
+        cropped = self.image.crop((
+            crop_left,
+            crop_top,
+            crop_right,
+            crop_bottom
+        ))
                 
         if self.zooming:
             method=Image.Resampling.BILINEAR
@@ -318,7 +345,10 @@ class PyMosh:
             method=self.preview_methods[self.preview_sampling]
             
         preview = cropped.resize(
-            (max(1, round(visible_width)), max(1, round(visibe_height))),
+            (
+                max(1, round((crop_right - crop_left) * scale)), 
+                max(1, round((crop_bottom - crop_top) * scale))
+            ),
             resample=method
         )    
         
@@ -331,8 +361,8 @@ class PyMosh:
         
         self.canvas.coords(
             self.canvas_image,
-            canvas_width / 2,
-            canvas_height / 2
+            (crop_left - left) * scale,
+            (crop_top - top) * scale
         )
         
         
@@ -450,19 +480,41 @@ class PyMosh:
                 text="PYMOSH // APPLIED RESTART"
             )
     
-    ##ZOOMING
-    def zoom_image(self, event):
-        if event.delta > 0:
-            self.change_zoom(self.zoom_step)
-        else:
-            self.change_zoom(-self.zoom_step)
-        return "break"
-    def change_zoom(self, amount):
+    ##ZOOMING AND PANNING
+    def change_zoom(self, amount, mouse_x=None, mouse_y=None):
         
         if self.min_zoom > self.zoom + amount or self.max_zoom < self.zoom + amount:
             return
         
-        self.zoom = max(self.min_zoom, min(self.max_zoom, self.zoom + amount))
+        if not self.zoom_to_mouse:
+            mouse_x = None
+            mouse_y = None
+        
+        new_zoom = self.zoom + amount
+        old_zoom = self.zoom
+        
+        center_x = self.canvas.winfo_width() / 2
+        center_y = self.canvas.winfo_height() / 2
+        
+        
+        if mouse_x is None:
+            mouse_x = center_x
+        if mouse_y is None:
+            mouse_y = center_y
+        
+        ratio = new_zoom / old_zoom
+        
+        self.pan_x = (
+            mouse_x - center_x
+            - ratio * (mouse_x - center_x - self.pan_x)
+        )
+        
+        self.pan_y = (
+            mouse_y - center_y
+            - ratio * (mouse_y - center_y - self.pan_y)
+        )
+        
+        self.zoom = new_zoom
         self.zooming = True
         
         if self.zoom_after_id is not None:
@@ -476,6 +528,29 @@ class PyMosh:
         self.zoom_after_id = None
         self.zooming = False
         self.update_preview()
+        
+    def start_pan(self, event):
+        self.pan_start = (event.x, event.y)    
+        self.canvas.configure(cursor="fleur")
+        
+    def drag_pan(self, event):
+        if self.pan_start is None:
+            return
+        
+        dx = event.x - self.pan_start[0]
+        dy = event.y - self.pan_start[1]
+        
+        self.pan_x += dx
+        self.pan_y += dy
+        
+        self.pan_start = (event.x, event.y)
+        
+        self.update_preview()
+            
+    def end_pan(self, event):
+        self.pan_start = None
+        self.canvas.configure(cursor="")
+        
         
     ##effects tab
     def show_effects(self):
@@ -885,7 +960,9 @@ class PyMosh:
         
         def change_zoom_step(value):
             self.zoom_step = float(value)
-            self.settings["zoom_step"] = float(value)        
+            self.settings["zoom_step"] = float(value)     
+        
+         
                     
                     
         tk.Label(
@@ -895,6 +972,49 @@ class PyMosh:
         bg=self.bg0,
         fg=self.accent1
         ).pack(anchor="w", pady=(15, 5))
+
+        ##zoom to mouse
+        self.zoom_to_mouse_var = tk.BooleanVar(
+            value=self.zoom_to_mouse
+        )
+        
+        def change_zoom_to_mouse():
+            self.zoom_to_mouse = self.zoom_to_mouse_var.get()
+            self.settings["zoom_to_mouse"] = self.zoom_to_mouse
+            if not self.zoom_to_mouse:
+                self.pan_x = 0
+                self.pan_y = 0
+                self.update_preview()
+        
+        
+        zoom_row = tk.Frame(content, bg=self.bg0)
+        zoom_row.pack(anchor="w")
+        
+        tk.Label(
+            zoom_row,
+            text="ZOOM TO MOUSE",
+            font=("Courier", 10),
+            bg=self.bg0,
+            fg="white"
+        ).pack(side="left")
+        
+        
+        tk.Checkbutton(
+            zoom_row,
+            variable=self.zoom_to_mouse_var,
+            command=change_zoom_to_mouse,
+            font=("Courier", 6),
+            bg=self.bg0,
+            fg=self.accent1,
+            selectcolor=self.bg0,
+            activeforeground=self.accent1,
+            bd=0,
+            padx=0,
+            pady=0,
+            width=0,
+            anchor="center",
+        ).pack(side="left", padx=(8, 0), pady=0)
+
 
         #min zoom
         tk.Label(
@@ -1126,6 +1246,7 @@ class PyMosh:
         self.zoom_step = self.settings["zoom_step"]
         self.max_undos = self.settings["max_undos"]
         self.undo_budget = self.settings["undo_budget"]
+        self.zoom_to_mouse = self.settings["zoom_to_mouse"]
     
     def save_settings(self):
         self.settings_file.parent.mkdir(parents=True, exist_ok=True)
